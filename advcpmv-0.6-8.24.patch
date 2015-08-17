@@ -1,0 +1,468 @@
+Only in coreutils-8.24-patch0.6: advcpmv-0.5-8.21.patch
+diff -crB coreutils-8.24/src/copy.c coreutils-8.24-patch0.6/src/copy.c
+*** coreutils-8.24/src/copy.c	2015-06-26 10:05:22.000000000 -0700
+--- coreutils-8.24-patch0.6/src/copy.c	2015-08-16 23:54:17.000000000 -0700
+***************
+*** 196,201 ****
+--- 196,251 ----
+  }
+  
+  
++ /* BEGIN progress mod */
++ static void file_progress_bar ( char * _cDest, int _iBarLength, int _iProgress, int _iTotal )
++ {
++   // write number to progress bar
++   float fPercent = ( float ) _iProgress / ( float ) _iTotal * 100.f;
++   sprintf ( _cDest + ( _iBarLength - 6 ), "%4.1f", fPercent );
++   // remove zero
++   _cDest[_iBarLength - 2] = ' ';
++ 
++   // fill rest with '-'
++   int i;
++   for ( i = 1; i <= _iBarLength - 9; i++ )
++   {
++     if ( fPercent > ( float ) ( i - 1 ) / ( _iBarLength - 10 ) * 100.f )
++       _cDest[i] = '|';
++     else
++       _cDest[i] = '-';
++   }
++ }
++ 
++ int file_size_format ( char * _cDst, int _iSize, int _iCounter )
++ {
++   int iCounter = _iCounter;
++   double dSize = ( double ) _iSize;
++   while ( dSize >= 1000. )
++   {
++     dSize /= 1024.;
++     iCounter++;
++   }
++ 
++   /* get unit */
++   char * sUnit;
++   if ( iCounter == 0 )
++     sUnit = "B";
++   else if ( iCounter == 1 )
++     sUnit = "KiB";
++   else if ( iCounter == 2 )
++     sUnit = "MiB";
++   else if ( iCounter == 3 )
++     sUnit = "GiB";
++   else if ( iCounter == 4 )
++     sUnit = "TiB";
++   else
++     sUnit = "N/A";
++ 
++   /* write number */
++   return sprintf ( _cDst, "%5.1f %s", dSize, sUnit );
++ }
++ /* END progress mod */
++ 
+  /* Copy the regular file open on SRC_FD/SRC_NAME to DST_FD/DST_NAME,
+     honoring the MAKE_HOLES setting and using the BUF_SIZE-byte buffer
+     BUF for temporary storage.  Copy no more than MAX_N_READ bytes.
+***************
+*** 315,320 ****
+--- 365,383 ----
+           for each file.  Unfortunately that doesn't work for
+           certain files in /proc or /sys with linux kernels.  */
+      }
++     
++   if (progress) {
++     /* BEGIN progress mod */
++     /* update total size */
++     g_iTotalWritten += *total_n_read / 1024;
++     g_iFilesCopied++;
++ 
++     int i;
++     for ( i = 0; i < 6; i++ )
++       free ( cProgressField[i] );
++     free ( cProgressField );
++     /* END progress mod */
++   }
+  
+    /* Ensure a trailing hole is created, so that subsequent
+       calls of sparse_copy() start at the correct offset.  */
+diff -crB coreutils-8.24/src/copy.h coreutils-8.24-patch0.6/src/copy.h
+*** coreutils-8.24/src/copy.h	2015-06-26 10:04:19.000000000 -0700
+--- coreutils-8.24-patch0.6/src/copy.h	2015-08-16 23:54:17.000000000 -0700
+***************
+*** 230,235 ****
+--- 230,238 ----
+    /* If true, create symbolic links instead of copying files.
+       Create destination directories as usual. */
+    bool symbolic_link;
++   
++   /* If true, draw a nice progress bar on screen */
++   bool progress_bar;
+  
+    /* If true, do not copy a nondirectory that has an existing destination
+       with the same or newer modification time. */
+***************
+*** 289,292 ****
+--- 292,306 ----
+  bool chown_failure_ok (struct cp_options const *) _GL_ATTRIBUTE_PURE;
+  mode_t cached_umask (void);
+  
++ /* BEGIN progress mod */
++ int file_size_format ( char * _cDst, int _iSize, int _iCounter );
++ 
++ long g_iTotalSize;
++ long g_iTotalWritten;
++ int g_iFilesCopied;
++ struct timeval g_oStartTime;
++ int g_iTotalFiles;
++ bool progress;
++ /* END progress mod */
++ 
+  #endif
+diff -crB coreutils-8.24/src/cp.c coreutils-8.24-patch0.6/src/cp.c
+*** coreutils-8.24/src/cp.c	2015-06-26 10:04:19.000000000 -0700
+--- coreutils-8.24-patch0.6/src/cp.c	2015-08-16 23:56:08.000000000 -0700
+***************
+*** 141,146 ****
+--- 141,147 ----
+    {"target-directory", required_argument, NULL, 't'},
+    {"update", no_argument, NULL, 'u'},
+    {"verbose", no_argument, NULL, 'v'},
++   {"progress-bar", no_argument, NULL, 'g'},
+    {GETOPT_SELINUX_CONTEXT_OPTION_DECL},
+    {GETOPT_HELP_OPTION_DECL},
+    {GETOPT_VERSION_OPTION_DECL},
+***************
+*** 179,184 ****
+--- 180,186 ----
+    -f, --force                  if an existing destination file cannot be\n\
+                                   opened, remove it and try again (this option\n\
+                                   is ignored when the -n option is also used)\n\
++   -g, --progress-bar           add progress-bar\n\
+    -i, --interactive            prompt before overwrite (overrides a previous -n\
+  \n\
+                                    option)\n\
+***************
+*** 624,629 ****
+--- 626,682 ----
+          error (EXIT_FAILURE, 0, _("target %s is not a directory"),
+                 quote (file[n_files - 1]));
+      }
++     
++   /* BEGIN progress mod */
++   struct timeval start_time;
++   if (progress) {
++     g_iTotalSize = 0;
++     g_iFilesCopied = 0;
++     g_iTotalWritten = 0;
++ 
++     /* save time */
++     gettimeofday ( & start_time, NULL );
++     g_oStartTime = start_time;
++ 
++     printf ( "Calculating total size... \r" );
++     fflush ( stdout );
++     long iTotalSize = 0;
++     int iFiles = n_files;
++     if ( ! target_directory )
++       iFiles = n_files - 1;
++     int j;
++     for (j = 0; j < iFiles; j++)
++     {
++       /* call du -s for each file */
++       /* create command */
++       char command[1024];
++       sprintf ( command, "du -s \"%s\"", file[j] );
++       /* TODO: replace all quote signs in file[i] */
++ 
++       FILE *fp;
++       char output[1024];
++ 
++       /* run command */
++       fp = popen(command, "r");
++       if (fp == NULL || fgets(output, sizeof(output)-1, fp) == NULL) {
++         printf("failed to run du.\n" );
++       }
++       else
++       {
++         /* isolate size */
++         strchr ( output, '\t' )[0] = '\0';
++         iTotalSize += atol ( output );
++ 
++         printf ( "Calculating total size... %ld\r", iTotalSize );
++         fflush ( stdout );
++       }
++ 
++       /* close */
++       pclose(fp);
++     }
++     g_iTotalSize = iTotalSize;
++   }
++   /* END progress mod */
+  
+    if (target_directory)
+      {
+***************
+*** 766,771 ****
+--- 819,864 ----
+  
+        ok = copy (source, new_dest, 0, x, &unused, NULL);
+      }
++     
++   /* BEGIN progress mod */
++   if (progress) {
++     /* remove everything */
++     int i;
++     if ( g_iTotalSize )
++     {
++       for ( i = 0; i < 6; i++ )
++         printf ( "\033[K\n" );
++       printf ( "\r\033[6A" );
++     }
++     else
++     {
++       for ( i = 0; i < 3; i++ )
++         printf ( "\033[K\n" );
++       printf ( "\r\033[3A" );
++     }
++ 
++     /* save time */
++     struct timeval end_time;
++     gettimeofday ( & end_time, NULL );
++     int usec_elapsed = end_time.tv_usec - start_time.tv_usec;
++     double sec_elapsed = ( double ) usec_elapsed / 1000000.f;
++     sec_elapsed += ( double ) ( end_time.tv_sec - start_time.tv_sec );
++ 
++     /* get total size */
++     char sTotalWritten[20];
++     file_size_format ( sTotalWritten, g_iTotalSize, 1 );
++     /* TODO: using g_iTotalWritten would be more correct, but is less accurate */
++ 
++     /* calculate speed */
++     int copy_speed = ( int ) ( ( double ) g_iTotalWritten / sec_elapsed );
++     char s_copy_speed[20];
++     file_size_format ( s_copy_speed, copy_speed, 1 );
++ 
++     /* good-bye message */
++     printf ( "%d files (%s) copied in %.1f seconds (%s/s).\n", g_iFilesCopied, sTotalWritten,
++              sec_elapsed, s_copy_speed );
++   }
++   /* END progress mod */
+  
+    return ok;
+  }
+***************
+*** 801,806 ****
+--- 894,900 ----
+    x->recursive = false;
+    x->sparse_mode = SPARSE_AUTO;
+    x->symbolic_link = false;
++   x->progress_bar = false;
+    x->set_mode = false;
+    x->mode = 0;
+  
+***************
+*** 943,949 ****
+       we'll actually use backup_suffix_string.  */
+    backup_suffix_string = getenv ("SIMPLE_BACKUP_SUFFIX");
+  
+!   while ((c = getopt_long (argc, argv, "abdfHilLnprst:uvxPRS:TZ",
+                             long_opts, NULL))
+           != -1)
+      {
+--- 1037,1043 ----
+       we'll actually use backup_suffix_string.  */
+    backup_suffix_string = getenv ("SIMPLE_BACKUP_SUFFIX");
+  
+!   while ((c = getopt_long (argc, argv, "abdfgHilLnprst:uvxPRS:TZ",
+                             long_opts, NULL))
+           != -1)
+      {
+***************
+*** 1000,1005 ****
+--- 1094,1103 ----
+            x.unlink_dest_after_failed_open = true;
+            break;
+  
++         case 'g':
++           progress = true;
++           break;
++ 
+          case 'H':
+            x.dereference = DEREF_COMMAND_LINE_ARGUMENTS;
+            break;
+diff -crB coreutils-8.24/src/mv.c coreutils-8.24-patch0.6/src/mv.c
+*** coreutils-8.24/src/mv.c	2015-06-26 10:04:19.000000000 -0700
+--- coreutils-8.24-patch0.6/src/mv.c	2015-08-16 23:56:44.000000000 -0700
+***************
+*** 65,70 ****
+--- 65,71 ----
+    {"target-directory", required_argument, NULL, 't'},
+    {"update", no_argument, NULL, 'u'},
+    {"verbose", no_argument, NULL, 'v'},
++   {"progress-bar", no_argument, NULL, 'g'},
+    {GETOPT_HELP_OPTION_DECL},
+    {GETOPT_VERSION_OPTION_DECL},
+    {NULL, 0, NULL, 0}
+***************
+*** 167,173 ****
+    bool copy_into_self;
+    bool rename_succeeded;
+    bool ok = copy (source, dest, false, x, &copy_into_self, &rename_succeeded);
+! 
+    if (ok)
+      {
+        char const *dir_to_remove;
+--- 168,174 ----
+    bool copy_into_self;
+    bool rename_succeeded;
+    bool ok = copy (source, dest, false, x, &copy_into_self, &rename_succeeded);
+!   
+    if (ok)
+      {
+        char const *dir_to_remove;
+***************
+*** 302,307 ****
+--- 303,309 ----
+  \n\
+    -b                           like --backup but does not accept an argument\n\
+    -f, --force                  do not prompt before overwriting\n\
++   -g, --progress-bar           add progress-bar\n\
+    -i, --interactive            prompt before overwrite\n\
+    -n, --no-clobber             do not overwrite an existing file\n\
+  If you specify more than one of -i, -f, -n, only the final one takes effect.\n\
+***************
+*** 373,379 ****
+       we'll actually use backup_suffix_string.  */
+    backup_suffix_string = getenv ("SIMPLE_BACKUP_SUFFIX");
+  
+!   while ((c = getopt_long (argc, argv, "bfint:uvS:TZ", long_options, NULL))
+           != -1)
+      {
+        switch (c)
+--- 375,381 ----
+       we'll actually use backup_suffix_string.  */
+    backup_suffix_string = getenv ("SIMPLE_BACKUP_SUFFIX");
+  
+!   while ((c = getopt_long (argc, argv, "bfint:uvgS:TZ", long_options, NULL))
+           != -1)
+      {
+        switch (c)
+***************
+*** 419,424 ****
+--- 421,429 ----
+          case 'v':
+            x.verbose = true;
+            break;
++         case 'g':
++           progress = true;
++           break;
+          case 'S':
+            make_backups = true;
+            backup_suffix_string = optarg;
+***************
+*** 490,495 ****
+--- 495,551 ----
+                     : no_backups);
+  
+    hash_init ();
++   
++   /* BEGIN progress mod */
++   struct timeval start_time;
++ 
++   if(progress) {
++     g_iTotalSize = 0;
++     g_iFilesCopied = 0;
++     g_iTotalWritten = 0;
++ 
++     gettimeofday (& start_time, NULL);
++     g_oStartTime = start_time;
++ 
++     printf ("Calculating total size... \r");
++     fflush (stdout);
++     long iTotalSize = 0;
++     int iFiles = n_files;
++     if ( !target_directory )
++       iFiles = 1;
++     int j;
++     for (j = 0; j < iFiles; j++)
++     {
++       /* call du -s for each file */
++       /* create command */
++       char command[1024];
++       sprintf ( command, "du -s \"%s\"", file[j] );
++       /* TODO: replace all quote signs in file[i] */
++ 
++       FILE *fp;
++       char output[1024];
++ 
++       /* run command */
++       fp = popen(command, "r");
++       if (fp == NULL || fgets(output, sizeof(output)-1, fp) == NULL) {
++         printf("failed to run du.\n" );
++       }
++       else
++       {
++         /* isolate size */
++         strchr ( output, '\t' )[0] = '\0';
++         iTotalSize += atol ( output );
++ 
++         printf ( "Calculating total size... %ld\r", iTotalSize );
++         fflush ( stdout );
++       }
++ 
++       /* close */
++       pclose(fp);
++     }
++     g_iTotalSize = iTotalSize;
++   }
++   /* END progress mod */
+  
+    if (target_directory)
+      {
+***************
+*** 507,512 ****
+--- 563,608 ----
+      }
+    else
+      ok = movefile (file[0], file[1], false, &x);
++   
++   /* BEGIN progress mod */
++   if (progress) {
++     /* remove everything */
++     int i;
++     if ( g_iTotalSize )
++     {
++       for ( i = 0; i < 6; i++ )
++         printf ( "\033[K\n" );
++       printf ( "\r\033[6A" );
++     }
++     else
++     {
++       for ( i = 0; i < 3; i++ )
++         printf ( "\033[K\n" );
++       printf ( "\r\033[3A" );
++     }
++ 
++     /* save time */
++     struct timeval end_time;
++     gettimeofday ( & end_time, NULL );
++     int usec_elapsed = end_time.tv_usec - start_time.tv_usec;
++     double sec_elapsed = ( double ) usec_elapsed / 1000000.f;
++     sec_elapsed += ( double ) ( end_time.tv_sec - start_time.tv_sec );
++ 
++     /* get total size */
++     char sTotalWritten[20];
++     file_size_format ( sTotalWritten, g_iTotalSize, 1 );
++     /* TODO: using g_iTotalWritten would be more correct, but is less accurate */
++ 
++     /* calculate speed */
++     int copy_speed = ( int ) ( ( double ) g_iTotalWritten / sec_elapsed );
++     char s_copy_speed[20];
++     file_size_format ( s_copy_speed, copy_speed, 1 );
++ 
++     /* good-bye message */
++     printf ( "%d files (%s) moved in %.1f seconds (%s/s).\n", g_iFilesCopied, sTotalWritten,
++              sec_elapsed, s_copy_speed );
++   }
++   /* END progress mod */
+  
+    return ok ? EXIT_SUCCESS : EXIT_FAILURE;
+  }
