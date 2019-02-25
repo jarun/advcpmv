@@ -14,8 +14,8 @@ The latest GNU Core Utilities source can be found here: https://ftp.gnu.org/gnu/
 wget http://ftp.gnu.org/gnu/coreutils/coreutils-8.30.tar.xz
 tar xvJf coreutils-8.30.tar.xz
 cd coreutils-8.30/
-wget https://raw.githubusercontent.com/mrdrogdrog/advcpmv/master/advcpmv-0.5-8.30.patch
-patch -p1 -i advcpmv-0.5-8.30.patch
+wget https://raw.githubusercontent.com/jarun/advcpmv/master/advcpmv-0.8-8.30.patch
+patch -p1 -i advcpmv-0.8-8.30.patch
 ./configure
 make
 ```
