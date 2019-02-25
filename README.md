@@ -15,6 +15,8 @@ version of coreutils.
 
 ## Build instructions
 
+The latest GNU Core Utilities source can be found here: https://ftp.gnu.org/gnu/coreutils/
+
 ```
 wget http://ftp.gnu.org/gnu/coreutils/coreutils-8.30.tar.xz
 tar xvJf coreutils-8.30.tar.xz
