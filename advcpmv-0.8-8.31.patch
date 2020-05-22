@@ -345,12 +345,12 @@ index 7d2303c54..d2bb8b02c 100644
 +/* BEGIN OF PROGRESS MOD */
 +int file_size_format ( char * _cDst, long _lSize, int _iCounter );
 +
-+long g_iTotalSize;
-+long g_iTotalWritten;
-+int g_iFilesCopied;
-+struct timeval g_oStartTime;
-+int g_iTotalFiles;
-+bool progress;
++__attribute__((__common__)) long g_iTotalSize;
++__attribute__((__common__)) long g_iTotalWritten;
++__attribute__((__common__)) int g_iFilesCopied;
++__attribute__((__common__)) struct timeval g_oStartTime;
++__attribute__((__common__)) int g_iTotalFiles;
++__attribute__((__common__)) bool progress;
 +/* END OF PROGRESS MOD */
 +
  #endif
