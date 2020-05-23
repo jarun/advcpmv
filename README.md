@@ -11,11 +11,11 @@ advcpmv-0.5-8.21.patch was the last patch released by the author (on February 14
 The latest GNU Core Utilities source can be found here: https://ftp.gnu.org/gnu/coreutils/
 
 ```
-wget http://ftp.gnu.org/gnu/coreutils/coreutils-8.31.tar.xz
-tar xvJf coreutils-8.31.tar.xz
-cd coreutils-8.31/
-wget https://raw.githubusercontent.com/jarun/advcpmv/master/advcpmv-0.8-8.31.patch
-patch -p1 -i advcpmv-0.8-8.31.patch
+wget http://ftp.gnu.org/gnu/coreutils/coreutils-8.32.tar.xz
+tar xvJf coreutils-8.32.tar.xz
+cd coreutils-8.32/
+wget https://raw.githubusercontent.com/jarun/advcpmv/master/advcpmv-0.8-8.32.patch
+patch -p1 -i advcpmv-0.8-8.32.patch
 ./configure
 make
 ```
