@@ -1,6 +1,6 @@
 diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
 --- coreutils-8.32/src/copy.c	2020-01-01 15:13:12.000000000 +0100
-+++ coreutils-8.32-patched/src/copy.c	2021-08-11 22:35:51.394308087 +0200
++++ coreutils-8.32-patched/src/copy.c	2021-08-11 22:52:34.493826169 +0200
 @@ -129,6 +129,72 @@
    dev_t dev;
  };
@@ -13,7 +13,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
 +  struct stat src_open_sb;
 +};
 +
-+/* BEGIN progress Mod*/
++/* BEGIN progress mod*/
 +static void file_progress_bar ( char * _cDest, int _iBarLength, long _lProgress, long _lTotal )
 +{
 +    double dPercent = (double) _lProgress / (double) _lTotal * 100.f;
