@@ -1,6 +1,6 @@
 diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
---- coreutils-8.32/src/copy.c	2020-01-01 19:43:12.000000000 +0530
-+++ coreutils-8.32-patched/src/copy.c	2021-05-19 20:00:26.470386351 +0530
+--- coreutils-8.32/src/copy.c	2020-01-01 15:13:12.000000000 +0100
++++ coreutils-8.32-patched/src/copy.c	2021-08-11 19:48:19.008225844 +0200
 @@ -129,6 +129,72 @@
    dev_t dev;
  };
@@ -160,7 +160,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
 +            {
 +              printf ( "\033[K%s\n", s_progress->cProgressField[it] );
 +              if ( strlen ( s_progress->cProgressField[it] ) < s_progress->iBarLength )
-+                printf ( "" );
++                printf ( "%s", "" );
 +            }
 +            if ( g_iTotalFiles > 1 )
 +              printf ( "\r\033[6A" );
@@ -356,8 +356,8 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
      }
  
 diff -aur coreutils-8.32/src/copy.h coreutils-8.32-patched/src/copy.h
---- coreutils-8.32/src/copy.h	2020-01-01 19:43:12.000000000 +0530
-+++ coreutils-8.32-patched/src/copy.h	2021-05-19 20:01:58.434794473 +0530
+--- coreutils-8.32/src/copy.h	2020-01-01 15:13:12.000000000 +0100
++++ coreutils-8.32-patched/src/copy.h	2021-08-11 19:40:37.729820358 +0200
 @@ -234,6 +234,9 @@
       Create destination directories as usual. */
    bool symbolic_link;
@@ -385,8 +385,8 @@ diff -aur coreutils-8.32/src/copy.h coreutils-8.32-patched/src/copy.h
 +
  #endif
 diff -aur coreutils-8.32/src/cp.c coreutils-8.32-patched/src/cp.c
---- coreutils-8.32/src/cp.c	2020-01-01 19:43:12.000000000 +0530
-+++ coreutils-8.32-patched/src/cp.c	2021-05-19 20:01:58.434794473 +0530
+--- coreutils-8.32/src/cp.c	2020-01-01 15:13:12.000000000 +0100
++++ coreutils-8.32-patched/src/cp.c	2021-08-11 19:40:37.729820358 +0200
 @@ -131,6 +131,7 @@
    {"symbolic-link", no_argument, NULL, 's'},
    {"target-directory", required_argument, NULL, 't'},
@@ -550,8 +550,8 @@ diff -aur coreutils-8.32/src/cp.c coreutils-8.32-patched/src/cp.c
            x.dereference = DEREF_COMMAND_LINE_ARGUMENTS;
            break;
 diff -aur coreutils-8.32/src/mv.c coreutils-8.32-patched/src/mv.c
---- coreutils-8.32/src/mv.c	2020-01-01 19:43:12.000000000 +0530
-+++ coreutils-8.32-patched/src/mv.c	2021-05-19 20:01:58.434794473 +0530
+--- coreutils-8.32/src/mv.c	2020-01-01 15:13:12.000000000 +0100
++++ coreutils-8.32-patched/src/mv.c	2021-08-11 19:40:37.729820358 +0200
 @@ -66,6 +66,7 @@
    {"target-directory", required_argument, NULL, 't'},
    {"update", no_argument, NULL, 'u'},
