@@ -376,8 +376,8 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
                                   opened, remove it and try again (this option\n\
                                   is ignored when the -n option is also used)\n\
 +  -g, --progress-bar           add a progress bar.\n\
-+                                 Note that this doesn't work with reflink,\n\ 
-+                                 reflink will be automatically disabled\n\ 
++                                 Note that this doesn't work with reflink,\n\
++                                 reflink will be automatically disabled\n\
    -i, --interactive            prompt before overwrite (overrides a previous -n\
  \n\
                                    option)\n\
