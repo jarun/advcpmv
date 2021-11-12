@@ -31,6 +31,8 @@ sudo mv ./src/cp /usr/local/bin/cpg
 sudo mv ./src/mv /usr/local/bin/mvg
 ```
 
+Note that progress bar does not work with reflink - reflink disabled if using progress bar, unchanged otherwise
+
 ### Alias
 
 You can install the binaries and create aliases for bash (or whatever you use)
