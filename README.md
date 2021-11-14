@@ -1,3 +1,5 @@
+![advcpmv](https://web.archive.org/web/20131217004029im_/http://beatex.org/web/advcopy/advcpmv-screen-20130313.png)
+
 ## Advanced Copy ##
 
 Advanced Copy is a mod for the GNU cp and GNU mv tools which adds a progress bar and provides some info on what's going on. It was written by Florian Zwicke and released under the GPL.
@@ -24,14 +26,14 @@ make
 
 ### Change your behaviour
 
-You can install the binaries and use `cpg -g` and `mvg -g` instead of cp and mv
+You can install the binaries and use `cpg -g` and `mvg -g` instead of cp and mv:
 
 ```
 sudo mv ./src/cp /usr/local/bin/cpg
 sudo mv ./src/mv /usr/local/bin/mvg
 ```
 
-Note that progress bar does not work with reflink - reflink disabled if using progress bar, unchanged otherwise
+Progress bar does not work with reflink (introduced v9.0 onwards). So reflink is disabled if using progress bar, left unchanged otherwise.
 
 ### Alias
 
