@@ -10,16 +10,10 @@ advcpmv-0.5-8.21.patch was the last patch released by the author (on February 14
 
 ## Build instructions
 
-The latest GNU Core Utilities source can be found here: https://ftp.gnu.org/gnu/coreutils/
+Run the following command which will download, patch, then compile coreutils, producing two files: `./advcpmv/advcp` and `./advcpmv/advmv`.
 
 ```
-wget http://ftp.gnu.org/gnu/coreutils/coreutils-9.0.tar.xz
-tar xvJf coreutils-9.0.tar.xz
-cd coreutils-9.0/
-wget https://raw.githubusercontent.com/jarun/advcpmv/master/advcpmv-0.9-9.0.patch
-patch -p1 -i advcpmv-0.9-9.0.patch
-./configure
-make
+bash -c "$(wget -O- https://raw.githubusercontent.com/jarun/advcpmv/master/install.sh)"
 ```
 
 ## Usage
@@ -29,8 +23,8 @@ make
 You can install the binaries and use `cpg -g` and `mvg -g` instead of cp and mv:
 
 ```
-sudo mv ./src/cp /usr/local/bin/cpg
-sudo mv ./src/mv /usr/local/bin/mvg
+sudo mv ./advcpmv/advcp /usr/local/bin/cpg
+sudo mv ./advcpmv/advmv /usr/local/bin/mvg
 ```
 
 Progress bar does not work with reflink (introduced v9.0 onwards). So reflink is disabled if using progress bar, left unchanged otherwise.
@@ -40,8 +34,8 @@ Progress bar does not work with reflink (introduced v9.0 onwards). So reflink is
 You can install the binaries and create aliases for bash (or whatever you use)
 
 ```
-sudo mv ./src/cp /usr/local/bin/advcp
-sudo mv ./src/mv /usr/local/bin/advmv
+sudo mv ./advcpmv/advcp /usr/local/bin/
+sudo mv ./advcpmv/advmv /usr/local/bin/
 echo alias cp '/usr/local/bin/advcp -g' >> ~/.bashrc
 echo alias mv '/usr/local/bin/advmv -g' >> ~/.bashrc
 ```
