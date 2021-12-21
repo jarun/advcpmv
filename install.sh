@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 ADVCPMV_VERSION=${1:-0.9}
 CORE_UTILS_VERSION=${2:-9.0}
 
