@@ -13,7 +13,8 @@ advcpmv-0.5-8.21.patch was the last patch released by the author (on February 14
 Run the following command which will download, patch, then compile coreutils, producing two files: `./advcpmv/advcp` and `./advcpmv/advmv`.
 
 ```
-bash -c "$(wget -O- https://raw.githubusercontent.com/jarun/advcpmv/master/install.sh)"
+curl https://raw.githubusercontent.com/jarun/advcpmv/master/install.sh --create-dirs -o ./advcpmv/install.sh"
+(cd advcpmv && bash install.sh)
 ```
 
 ## Usage
