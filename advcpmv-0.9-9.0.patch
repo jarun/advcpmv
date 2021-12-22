@@ -1,6 +1,6 @@
 diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 --- coreutils-9.0/src/copy.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/copy.c	2021-12-22 13:54:37.773464626 +0100
++++ coreutils-9.0-patched/src/copy.c	2021-12-22 14:00:42.663699889 +0100
 @@ -129,6 +129,70 @@
    dev_t dev;
  };
@@ -91,8 +91,8 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
    while (max_n_read)
      {
 +
++    /* BEGIN progress mod */
 +    if (progress) {
-+          /* BEGIN progress mod */
 +          /* update countdown */
 +          s_progress->iCountDown--;
 +          char * sProgressBar = s_progress->cProgressField[5];
@@ -166,8 +166,8 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 +              printf ( "\r\033[3A" );
 +            fflush ( stdout );
 +          }
-+          /* END progress mod */
 +      }
++      /* END progress mod */
 +
        ssize_t n_read = read (src_fd, buf, MIN (max_n_read, buf_size));
        if (n_read < 0)
@@ -320,7 +320,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
            return_val = false;
            goto close_src_and_dst_desc;
          }
-+       /* BEGIN progress mod */
++      /* BEGIN progress mod */
 +      if (progress) {
 +            int i;
 +            for ( i = 0; i < 6; i++ )
@@ -362,7 +362,7 @@ diff -aur coreutils-9.0/src/copy.h coreutils-9.0-patched/src/copy.h
  #endif
 diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
 --- coreutils-9.0/src/cp.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/cp.c	2021-12-22 13:38:59.519244777 +0100
++++ coreutils-9.0-patched/src/cp.c	2021-12-22 14:02:52.053943727 +0100
 @@ -131,6 +131,7 @@
    {"symbolic-link", no_argument, NULL, 's'},
    {"target-directory", required_argument, NULL, 't'},
@@ -385,9 +385,9 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
          die (EXIT_FAILURE, 0, _("target %s is not a directory"),
               quoteaf (file[n_files - 1]));
      }
++    /* BEGIN progress mod */
 +    struct timeval start_time;
 +    if (progress) {
-+        /* BEGIN progress mod */
 +        g_iTotalSize = 0;
 +        g_iTotalFiles = 0;
 +        g_iFilesCopied = 0;
@@ -446,8 +446,8 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
 +          pclose(fp);
 +        }
 +        g_iTotalSize = iTotalSize;
-+        /* END progress mod */
 +    }
++    /* END progress mod */
 +
  
    if (target_directory)
@@ -456,8 +456,8 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
        ok = copy (source, new_dest, 0, x, &unused, NULL);
      }
  
++    /* BEGIN progress mod */
 +    if (progress) {
-+        /* BEGIN progress mod */
 +        /* remove everything */
 +        int i;
 +        if ( g_iTotalFiles > 1 )
@@ -493,8 +493,8 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
 +        /* good-bye message */
 +        printf ( "%d files (%s) copied in %.1f seconds (%s/s).\n", g_iFilesCopied, sTotalWritten,
 +                 sec_elapsed, s_copy_speed );
-+        /* END progress mod */
 +    }
++    /* END progress mod */
 +
    return ok;
  }
@@ -539,7 +539,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
                                     version_control_string)
 diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 --- coreutils-9.0/src/mv.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/mv.c	2021-12-22 13:37:58.306524898 +0100
++++ coreutils-9.0-patched/src/mv.c	2021-12-22 14:06:01.609250389 +0100
 @@ -66,6 +66,7 @@
    {"target-directory", required_argument, NULL, 't'},
    {"update", no_argument, NULL, 'u'},
@@ -556,8 +556,9 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 +
    bool copy_into_self;
    bool rename_succeeded;
++
++  /* BEGIN progress mod */
 +  if(progress && x->rename_errno != 0) {
-+    /* BEGIN progress mod */
 +    g_iTotalSize = 0;
 +    g_iFilesCopied = 0;
 +    g_iTotalWritten = 0;
@@ -594,14 +595,13 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 +    /* close */
 +    pclose(fp);
 +    g_iTotalSize = iTotalSize;
-+    /* END progress mod */
-+
 +  }
++  /* END progress mod */
 +
    bool ok = copy (source, dest, false, x, &copy_into_self, &rename_succeeded);
  
++  /* BEGIN progress mod */
 +  if (progress && (x->rename_errno != 0 && ok)) {
-+    /* BEGIN progress mod */
 +    /* remove everything */
 +    int i;
 +    int limit = (g_iTotalFiles > 1 ? 6 : 3);
@@ -629,8 +629,8 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 +    /* good-bye message */
 +    printf ( "%d files (%s) moved in %.1f seconds (%s/s).\n", g_iFilesCopied, sTotalWritten,
 +             sec_elapsed, s_copy_speed );
-+    /* END progress mod */
 +  }
++  /* END progress mod */
 +
    if (ok)
      {
