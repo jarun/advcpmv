@@ -539,7 +539,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
                                     version_control_string)
 diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 --- coreutils-9.0/src/mv.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/mv.c	2021-12-22 14:06:01.609250389 +0100
++++ coreutils-9.0-patched/src/mv.c	2021-12-22 14:16:55.425936987 +0100
 @@ -66,6 +66,7 @@
    {"target-directory", required_argument, NULL, 't'},
    {"update", no_argument, NULL, 'u'},
@@ -572,7 +572,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 +    /* call du -s for each file */
 +    /* create command */
 +    char command[1024];
-+    sprintf ( command, "du -s '%s'", source );
++    sprintf ( command, "du -s \"%s\"", source );
 +    /* TODO: replace all quote signs in file[i] */
 +
 +    FILE *fp;
