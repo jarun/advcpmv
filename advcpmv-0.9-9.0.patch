@@ -364,7 +364,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
    if (x->preserve_timestamps)
 diff -aur coreutils-9.0/src/copy.h coreutils-9.0-patched/src/copy.h
 --- coreutils-9.0/src/copy.h	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/copy.h	2021-12-22 15:34:28.162542540 +0100
++++ coreutils-9.0-patched/src/copy.h	2021-12-22 22:30:16.072134557 +0100
 @@ -236,6 +236,9 @@
       Create destination directories as usual. */
    bool symbolic_link;
@@ -375,7 +375,7 @@ diff -aur coreutils-9.0/src/copy.h coreutils-9.0-patched/src/copy.h
    /* If true, do not copy a nondirectory that has an existing destination
       with the same or newer modification time. */
    bool update;
-@@ -308,4 +311,17 @@
+@@ -308,4 +311,18 @@
  bool chown_failure_ok (struct cp_options const *) _GL_ATTRIBUTE_PURE;
  mode_t cached_umask (void);
  
@@ -387,6 +387,7 @@ diff -aur coreutils-9.0/src/copy.h coreutils-9.0-patched/src/copy.h
 +__attribute__((__common__)) long g_iTotalSize;
 +__attribute__((__common__)) long g_iTotalWritten;
 +__attribute__((__common__)) int g_iFilesCopied;
++__attribute__((__common__)) int g_iDirectoriesCopied;
 +__attribute__((__common__)) struct timeval g_oStartTime;
 +__attribute__((__common__)) int g_iTotalFiles;
 +__attribute__((__common__)) bool progress;
@@ -575,7 +576,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
                                     version_control_string)
 diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 --- coreutils-9.0/src/mv.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/mv.c	2021-12-22 18:29:46.254836707 +0100
++++ coreutils-9.0-patched/src/mv.c	2021-12-22 23:27:30.329010117 +0100
 @@ -66,6 +66,7 @@
    {"target-directory", required_argument, NULL, 't'},
    {"update", no_argument, NULL, 'u'},
@@ -584,7 +585,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
    {GETOPT_HELP_OPTION_DECL},
    {GETOPT_VERSION_OPTION_DECL},
    {NULL, 0, NULL, 0}
-@@ -168,10 +169,87 @@
+@@ -168,10 +169,108 @@
  static bool
  do_move (char const *source, char const *dest, const struct cp_options *x)
  {
@@ -595,9 +596,17 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 +
 +  /* BEGIN progress mod */
 +  if(progress && x->rename_errno != 0) {
-+    g_iTotalSize = 0;
-+    g_iFilesCopied = 0;
-+    g_iTotalWritten = 0;
++    if (g_iTotalSize == 0)
++      g_iTotalSize = 0;
++    if (g_iFilesCopied == 0)
++      g_iFilesCopied = 0;
++    if (g_iDirectoriesCopied == 0)
++      g_iDirectoriesCopied = 0;
++    if (g_iTotalWritten == 0)
++      g_iTotalWritten = 0;
++
++    if (target_directory_operand (source))
++      g_iDirectoriesCopied++;
 +
 +    gettimeofday (& start_time, NULL);
 +    g_oStartTime = start_time;
@@ -631,7 +640,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 +
 +    /* close */
 +    pclose(fp);
-+    g_iTotalSize = iTotalSize;
++    g_iTotalSize += iTotalSize;
 +  }
 +  /* END progress mod */
 +
@@ -663,16 +672,29 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 +    char s_copy_speed[20];
 +    file_size_format ( s_copy_speed, copy_speed, 1 );
 +
++    /* increase counter */
++    g_iFilesCopied++;
++
 +    /* good-bye message */
-+    printf ( "%d files (%s) moved in %.1f seconds (%s/s).\n", g_iFilesCopied, sTotalWritten,
-+             sec_elapsed, s_copy_speed );
++    if ( x->last_file )
++    {
++      char sFType[20];
++      if ( g_iDirectoriesCopied > 0 && g_iDirectoriesCopied == g_iFilesCopied )
++        sprintf ( sFType, "%s", "folder(s)" );
++      else if ( g_iDirectoriesCopied > 0 && g_iDirectoriesCopied < g_iFilesCopied )
++        sprintf ( sFType, "%s", "folder(s)/file(s)" );
++      else
++        sprintf ( sFType, "%s", "file(s)" );
++      printf ( "%d %s (%s) moved in %.1f seconds (%s/s).\n", g_iFilesCopied, sFType,
++               sTotalWritten, sec_elapsed, s_copy_speed );
++    }
 +  }
 +  /* END progress mod */
 +
    if (ok)
      {
        char const *dir_to_remove;
-@@ -306,6 +384,7 @@
+@@ -306,6 +405,7 @@
  \n\
    -b                           like --backup but does not accept an argument\n\
    -f, --force                  do not prompt before overwriting\n\
@@ -680,7 +702,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
    -i, --interactive            prompt before overwrite\n\
    -n, --no-clobber             do not overwrite an existing file\n\
  If you specify more than one of -i, -f, -n, only the final one takes effect.\n\
-@@ -361,7 +440,7 @@
+@@ -361,7 +461,7 @@
    /* Try to disable the ability to unlink a directory.  */
    priv_set_remove_linkdir ();
  
@@ -689,7 +711,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
           != -1)
      {
        switch (c)
-@@ -407,6 +486,9 @@
+@@ -407,6 +507,9 @@
          case 'v':
            x.verbose = true;
            break;
