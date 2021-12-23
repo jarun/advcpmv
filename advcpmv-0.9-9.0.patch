@@ -1,6 +1,6 @@
 diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 --- coreutils-9.0/src/copy.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/copy.c	2021-12-23 18:50:20.771131070 +0100
++++ coreutils-9.0-patched/src/copy.c	2021-12-23 19:13:54.313100934 +0100
 @@ -129,6 +129,101 @@
    dev_t dev;
  };
@@ -269,7 +269,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
          return false;
  
        dest_pos = ext_start + n_read;
-@@ -1374,8 +1587,78 @@
+@@ -1374,8 +1587,82 @@
        buf_alloc = xmalloc (buf_size + buf_alignment);
        buf = ptr_align (buf_alloc, buf_alignment);
  
@@ -308,7 +308,11 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 +        file_size_format ( cProgressField[1] + iBarLength - 9, g_iTotalSize, 1 );
 +
 +        /* show how many files were written */
-+        int sum_length = sprintf ( cProgressField[1], "%d files copied so far...", g_iFilesCopied );
++        int sum_length = 0;
++        if ( x->move_mode )
++          sum_length = sprintf ( cProgressField[1], "%d files moved so far...", g_iFilesCopied );
++        else
++          sum_length = sprintf ( cProgressField[1], "%d files copied so far...", g_iFilesCopied );
 +        cProgressField[1][sum_length] = ' ';
 +      }
 +
@@ -348,7 +352,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
        if (! (
  #ifdef SEEK_HOLE
               scantype == LSEEK_SCANTYPE
-@@ -1383,15 +1666,30 @@
+@@ -1383,15 +1670,30 @@
                             scan_inference.ext_start, src_open_sb.st_size,
                             make_holes ? x->sparse_mode : SPARSE_NEVER,
                             x->reflink_mode != REFLINK_NEVER,
@@ -381,7 +385,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
          {
            return_val = false;
            goto close_src_and_dst_desc;
-@@ -1402,6 +1700,14 @@
+@@ -1402,6 +1704,14 @@
            return_val = false;
            goto close_src_and_dst_desc;
          }
@@ -623,7 +627,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
                                     version_control_string)
 diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 --- coreutils-9.0/src/mv.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/mv.c	2021-12-23 18:47:22.480010369 +0100
++++ coreutils-9.0-patched/src/mv.c	2021-12-23 19:15:58.867551600 +0100
 @@ -66,6 +66,9 @@
    {"target-directory", required_argument, NULL, 't'},
    {"update", no_argument, NULL, 'u'},
@@ -634,7 +638,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
    {GETOPT_HELP_OPTION_DECL},
    {GETOPT_VERSION_OPTION_DECL},
    {NULL, 0, NULL, 0}
-@@ -170,8 +173,106 @@
+@@ -170,8 +173,121 @@
  {
    bool copy_into_self;
    bool rename_succeeded;
@@ -645,6 +649,8 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 +  if(progress && x->rename_errno != 0) {
 +    if (g_iTotalSize == 0)
 +      g_iTotalSize = 0;
++    if (g_iTotalFiles == 0)
++      g_iTotalFiles = 0;
 +    if (g_iFilesCopied == 0)
 +      g_iFilesCopied = 0;
 +    if (g_iDirectoriesCopied == 0)
@@ -658,18 +664,28 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 +    gettimeofday (& start_time, NULL);
 +    g_oStartTime = start_time;
 +
++    /* how many files are we copying */
++    char command[1024];
++    char output[1024];
++    FILE *fp ;
++
++    char * _cEscapedString = escape_double_quotes( (unsigned char *)(size_t)source );
++    sprintf( command, "find \"%s\" -type f | wc -l", _cEscapedString );
++    free( _cEscapedString );
++    fp = popen(command,"r");
++    if ( fp == NULL || fgets(output, sizeof(output)-1, fp) == NULL)
++      printf("failed to run find\r");
++    else
++      g_iTotalFiles = atoi( output );
++
 +    printf ("calculating total size... \r");
 +    fflush (stdout);
 +    long iTotalSize = 0;
 +    /* call du -s for each file */
 +    /* create command */
-+    char command[1024];
-+    char * _cEscapedString = escape_double_quotes( (unsigned char *)(size_t)source );
++    _cEscapedString = escape_double_quotes( (unsigned char *)(size_t)source );
 +    sprintf ( command, "du -s \"%s\"", _cEscapedString );
 +    free( _cEscapedString );
-+
-+    FILE *fp;
-+    char output[1024];
 +
 +    /* run command */
 +    fp = popen(command, "r");
@@ -698,9 +714,12 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 +    /* remove everything */
 +    int i;
 +    int limit = (g_iTotalFiles > 1 ? 6 : 3);
-+    for ( i = 0; i < limit; i++ )
-+      printf ( "\033[K\n" );
-+    printf ( "\r\033[3A" );
++    if (!rename_succeeded)
++    {
++      for ( i = 0; i < limit; i++ )
++        printf ( "\033[K\n" );
++      printf ( "\r\033[3A" );
++    }
 +
 +    /* save time */
 +    struct timeval end_time;
@@ -741,7 +760,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
    if (ok)
      {
        char const *dir_to_remove;
-@@ -306,6 +407,11 @@
+@@ -306,6 +422,11 @@
  \n\
    -b                           like --backup but does not accept an argument\n\
    -f, --force                  do not prompt before overwriting\n\
@@ -753,7 +772,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
    -i, --interactive            prompt before overwrite\n\
    -n, --no-clobber             do not overwrite an existing file\n\
  If you specify more than one of -i, -f, -n, only the final one takes effect.\n\
-@@ -361,7 +467,8 @@
+@@ -361,7 +482,8 @@
    /* Try to disable the ability to unlink a directory.  */
    priv_set_remove_linkdir ();
  
@@ -763,7 +782,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
           != -1)
      {
        switch (c)
-@@ -407,6 +514,11 @@
+@@ -407,6 +529,11 @@
          case 'v':
            x.verbose = true;
            break;
