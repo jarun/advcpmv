@@ -1,6 +1,6 @@
 diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 --- coreutils-9.0/src/copy.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/copy.c	2021-12-23 11:35:19.632502471 +0100
++++ coreutils-9.0-patched/src/copy.c	2021-12-23 18:50:20.771131070 +0100
 @@ -129,6 +129,101 @@
    dev_t dev;
  };
@@ -163,8 +163,8 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 +            /* print out */
 +            sprintf ( s_progress->cProgressField[3],
 +              move_mode
-+                ? "Moving at %s/s (about %uh %um %us remaining)"
-+                : "Copying at %s/s (about %uh %um %us remaining)", s_copy_speed,
++                ? "moving at %s/s (about %uh %um %us remaining)"
++                : "copying at %s/s (about %uh %um %us remaining)", s_copy_speed,
 +              hours_remaining, min_remaining, sec_remaining );
 +
 +            int fs_len;
@@ -398,7 +398,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
    if (x->preserve_timestamps)
 diff -aur coreutils-9.0/src/copy.h coreutils-9.0-patched/src/copy.h
 --- coreutils-9.0/src/copy.h	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/copy.h	2021-12-23 09:37:38.015722020 +0100
++++ coreutils-9.0-patched/src/copy.h	2021-12-23 18:38:01.481129523 +0100
 @@ -236,6 +236,11 @@
       Create destination directories as usual. */
    bool symbolic_link;
@@ -432,7 +432,7 @@ diff -aur coreutils-9.0/src/copy.h coreutils-9.0-patched/src/copy.h
  #endif
 diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
 --- coreutils-9.0/src/cp.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/cp.c	2021-12-23 11:44:06.012603217 +0100
++++ coreutils-9.0-patched/src/cp.c	2021-12-23 18:46:20.692530921 +0100
 @@ -131,6 +131,9 @@
    {"symbolic-link", no_argument, NULL, 's'},
    {"target-directory", required_argument, NULL, 't'},
@@ -473,7 +473,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
 +        gettimeofday ( & start_time, NULL );
 +        g_oStartTime = start_time;
 +
-+        printf ( "Calculating total size... \r" );
++        printf ( "calculating total size... \r" );
 +        fflush ( stdout );
 +        long iTotalSize = 0;
 +        int iFiles = n_files;
@@ -490,7 +490,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
 +        char output[1024];
 +        fp = popen(command,"r");
 +        if ( fp == NULL || fgets(output, sizeof(output)-1, fp) == NULL)
-+            printf("failed to run find.\n");
++            printf("failed to run find\r");
 +        else
 +            g_iTotalFiles = atoi( output );
 +
@@ -509,7 +509,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
 +          /* run command */
 +          fp = popen(command, "r");
 +          if (fp == NULL || fgets(output, sizeof(output)-1, fp) == NULL) {
-+            printf("failed to run du.\n" );
++            printf("failed to run du\r" );
 +          }
 +          else
 +          {
@@ -517,7 +517,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
 +            strchr ( output, '\t' )[0] = '\0';
 +            iTotalSize += atol ( output );
 +
-+            printf ( "Calculating total size... %ld\r", iTotalSize );
++            printf ( "calculating total size... %ld\r", iTotalSize );
 +            fflush ( stdout );
 +          }
 +
@@ -623,7 +623,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
                                     version_control_string)
 diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 --- coreutils-9.0/src/mv.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/mv.c	2021-12-23 11:57:51.221688967 +0100
++++ coreutils-9.0-patched/src/mv.c	2021-12-23 18:47:22.480010369 +0100
 @@ -66,6 +66,9 @@
    {"target-directory", required_argument, NULL, 't'},
    {"update", no_argument, NULL, 'u'},
@@ -658,7 +658,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 +    gettimeofday (& start_time, NULL);
 +    g_oStartTime = start_time;
 +
-+    printf ("Calculating total size... \r");
++    printf ("calculating total size... \r");
 +    fflush (stdout);
 +    long iTotalSize = 0;
 +    /* call du -s for each file */
@@ -674,14 +674,14 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 +    /* run command */
 +    fp = popen(command, "r");
 +    if (fp == NULL || fgets(output, sizeof(output)-1, fp) == NULL) {
-+      //printf("failed to run du.\n" );
++      printf("failed to run du\r" );
 +    }
 +    else
 +    {
 +      /* isolate size */
 +      strchr ( output, '\t' )[0] = '\0';
 +      iTotalSize += atol ( output );
-+      printf ( "Calculating total size... %ld\r", iTotalSize );
++      printf ( "calculating total size... %ld\r", iTotalSize );
 +      fflush ( stdout );
 +    }
 +
