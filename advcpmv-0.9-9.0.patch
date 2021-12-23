@@ -1,10 +1,11 @@
 diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 --- coreutils-9.0/src/copy.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/copy.c	2021-12-22 20:21:15.702583886 +0100
++++ coreutils-9.0-patched/src/copy.c	2021-12-23 09:03:07.290374485 +0100
 @@ -129,6 +129,101 @@
    dev_t dev;
  };
  
++/* BEGIN progress mod */
 +struct progress_status {
 +  int iCountDown;
 +  char ** cProgressField;
@@ -13,7 +14,6 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 +  struct stat src_open_sb;
 +};
 +
-+/* BEGIN progress mod */
 +char * escape_double_quotes ( char * _cUnescapedString )
 +{
 +  int pos = 0;
