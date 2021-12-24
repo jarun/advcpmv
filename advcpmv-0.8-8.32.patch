@@ -1,7 +1,7 @@
 diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
 --- coreutils-8.32/src/copy.c	2020-01-01 15:13:12.000000000 +0100
-+++ coreutils-8.32-patched/src/copy.c	2021-12-23 19:26:40.665650895 +0100
-@@ -129,6 +129,101 @@
++++ coreutils-8.32-patched/src/copy.c	2021-12-24 20:12:31.563582368 +0100
+@@ -129,6 +129,95 @@
    dev_t dev;
  };
  
@@ -16,32 +16,26 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
 +
 +char * escape_double_quotes ( char * _cUnescapedString )
 +{
-+  int pos = 0;
-+  int count = 0;
-+  for(pos = 0; _cUnescapedString[pos] != '\0'; pos++)
-+  {
-+    if(_cUnescapedString[pos] == '"')
-+      ++count;
-+  }
-+
 +  char * _cEscapedString;
-+  _cEscapedString = calloc( sizeof(char) * ( pos + 1 + count * 2 ), sizeof(char) );
-+
-+  int epos = 0;
-+  for(pos = 0; _cUnescapedString[pos] != '\0'; pos++)
++  _cEscapedString = (char *) malloc( sizeof(char) * strlen(_cUnescapedString) * 2 );
++  size_t ipos = 0;
++  size_t rpos = 0;
++  for(rpos = 0, ipos = 0; _cUnescapedString[rpos] != '\0'; rpos++, ipos++)
 +  {
-+    if(_cUnescapedString[pos] == '"')
++    if(_cUnescapedString[rpos] == '"')
 +    {
-+      _cEscapedString[epos] = '\\';
-+      epos++;
-+      _cEscapedString[epos] = _cUnescapedString[pos];
++      _cEscapedString[ipos] = '\\';
++      ipos++;
 +    }
-+    else
-+      _cEscapedString[epos] = _cUnescapedString[pos];
-+    epos++;
++    if(_cUnescapedString[rpos] == '`')
++    {
++      _cEscapedString[ipos] = '\\';
++      ipos++;
++    }
++    _cEscapedString[ipos] = _cUnescapedString[rpos];
 +  }
-+  epos++;
-+  _cEscapedString[epos] = '\0';
++  ipos++;
++  _cEscapedString[ipos] = '\0';
 +  return _cEscapedString;
 +}
 +
@@ -103,7 +97,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
  /* Initial size of the cp.dest_info hash table.  */
  #define DEST_INFO_INITIAL_CAPACITY 61
  
-@@ -259,9 +354,16 @@
+@@ -259,9 +348,16 @@
  static bool
  sparse_copy (int src_fd, int dest_fd, char *buf, size_t buf_size,
               size_t hole_size, bool punch_holes,
@@ -121,7 +115,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
  {
    *last_write_made_hole = false;
    *total_n_read = 0;
-@@ -270,6 +372,85 @@
+@@ -270,6 +366,85 @@
  
    while (max_n_read)
      {
@@ -207,7 +201,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
        ssize_t n_read = read (src_fd, buf, MIN (max_n_read, buf_size));
        if (n_read < 0)
          {
-@@ -354,6 +535,14 @@
+@@ -354,6 +529,14 @@
           certain files in /proc or /sys with linux kernels.  */
      }
  
@@ -222,7 +216,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
    /* Ensure a trailing hole is created, so that subsequent
       calls of sparse_copy() start at the correct offset.  */
    if (make_hole && ! create_hole (dest_fd, dst_name, punch_holes, psize))
-@@ -420,9 +609,11 @@
+@@ -420,9 +603,11 @@
  static bool
  extent_copy (int src_fd, int dest_fd, char *buf, size_t buf_size,
               size_t hole_size, off_t src_total_size,
@@ -236,7 +230,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
  {
    struct extent_scan scan;
    off_t last_ext_start = 0;
-@@ -553,10 +744,26 @@
+@@ -553,10 +738,26 @@
                last_ext_len = ext_len;
                bool read_hole;
  
@@ -265,7 +259,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
                  goto fail;
  
                dest_pos = ext_start + n_read;
-@@ -1305,6 +1512,75 @@
+@@ -1305,6 +1506,75 @@
        buf_alloc = xmalloc (buf_size + buf_alignment);
        buf = ptr_align (buf_alloc, buf_alignment);
  
@@ -341,7 +335,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
        if (sparse_src)
          {
            bool normal_copy_required;
-@@ -1316,7 +1592,9 @@
+@@ -1316,7 +1586,9 @@
            if (extent_copy (source_desc, dest_desc, buf, buf_size, hole_size,
                             src_open_sb.st_size,
                             make_holes ? x->sparse_mode : SPARSE_NEVER,
@@ -352,7 +346,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
              goto preserve_metadata;
  
            if (! normal_copy_required)
-@@ -1328,11 +1606,23 @@
+@@ -1328,11 +1600,23 @@
  
        off_t n_read;
        bool wrote_hole_at_eof;
@@ -379,7 +373,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
          {
            return_val = false;
            goto close_src_and_dst_desc;
-@@ -1343,6 +1633,14 @@
+@@ -1343,6 +1627,14 @@
            return_val = false;
            goto close_src_and_dst_desc;
          }
@@ -394,7 +388,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
      }
  
  preserve_metadata:
-@@ -1716,15 +2014,15 @@
+@@ -1716,15 +2008,15 @@
        fprintf (stderr,
                 (x->move_mode || x->unlink_dest_before_opening
                  || x->unlink_dest_after_failed_open)
