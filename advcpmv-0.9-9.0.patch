@@ -1,7 +1,7 @@
 diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 --- coreutils-9.0/src/copy.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/copy.c	2021-12-23 19:13:54.313100934 +0100
-@@ -129,6 +129,101 @@
++++ coreutils-9.0-patched/src/copy.c	2021-12-24 20:07:37.109671577 +0100
+@@ -129,6 +129,95 @@
    dev_t dev;
  };
  
@@ -16,32 +16,26 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 +
 +char * escape_double_quotes ( char * _cUnescapedString )
 +{
-+  int pos = 0;
-+  int count = 0;
-+  for(pos = 0; _cUnescapedString[pos] != '\0'; pos++)
-+  {
-+    if(_cUnescapedString[pos] == '"')
-+      ++count;
-+  }
-+
 +  char * _cEscapedString;
-+  _cEscapedString = calloc( sizeof(char) * ( pos + 1 + count * 2 ), sizeof(char) );
-+
-+  int epos = 0;
-+  for(pos = 0; _cUnescapedString[pos] != '\0'; pos++)
++  _cEscapedString = (char *) malloc( sizeof(char) * strlen(_cUnescapedString) * 2 );
++  size_t ipos = 0;
++  size_t rpos = 0;
++  for(rpos = 0, ipos = 0; _cUnescapedString[rpos] != '\0'; rpos++, ipos++)
 +  {
-+    if(_cUnescapedString[pos] == '"')
++    if(_cUnescapedString[rpos] == '"')
 +    {
-+      _cEscapedString[epos] = '\\';
-+      epos++;
-+      _cEscapedString[epos] = _cUnescapedString[pos];
++      _cEscapedString[ipos] = '\\';
++      ipos++;
 +    }
-+    else
-+      _cEscapedString[epos] = _cUnescapedString[pos];
-+    epos++;
++    if(_cUnescapedString[rpos] == '`')
++    {
++      _cEscapedString[ipos] = '\\';
++      ipos++;
++    }
++    _cEscapedString[ipos] = _cUnescapedString[rpos];
 +  }
-+  epos++;
-+  _cEscapedString[epos] = '\0';
++  ipos++;
++  _cEscapedString[ipos] = '\0';
 +  return _cEscapedString;
 +}
 +
@@ -103,7 +97,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
  /* Initial size of the cp.dest_info hash table.  */
  #define DEST_INFO_INITIAL_CAPACITY 61
  
-@@ -300,9 +395,16 @@
+@@ -300,9 +389,16 @@
  static bool
  sparse_copy (int src_fd, int dest_fd, char *buf, size_t buf_size,
               size_t hole_size, bool punch_holes, bool allow_reflink,
@@ -121,7 +115,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
  {
    *last_write_made_hole = false;
    *total_n_read = 0;
-@@ -362,6 +464,85 @@
+@@ -362,6 +458,85 @@
  
    while (max_n_read)
      {
@@ -207,7 +201,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
        ssize_t n_read = read (src_fd, buf, MIN (max_n_read, buf_size));
        if (n_read < 0)
          {
-@@ -446,6 +627,14 @@
+@@ -446,6 +621,14 @@
           certain files in /proc or /sys with linux kernels.  */
      }
  
@@ -222,7 +216,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
    /* Ensure a trailing hole is created, so that subsequent
       calls of sparse_copy() start at the correct offset.  */
    if (make_hole && ! create_hole (dest_fd, dst_name, punch_holes, psize))
-@@ -517,8 +706,16 @@
+@@ -517,8 +700,16 @@
  lseek_copy (int src_fd, int dest_fd, char *buf, size_t buf_size,
              size_t hole_size, off_t ext_start, off_t src_total_size,
              enum Sparse_type sparse_mode,
@@ -240,7 +234,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
  {
    off_t last_ext_start = 0;
    off_t last_ext_len = 0;
-@@ -590,10 +787,26 @@
+@@ -590,10 +781,26 @@
           is conservative and may miss some holes.  */
        off_t n_read;
        bool read_hole;
@@ -269,7 +263,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
          return false;
  
        dest_pos = ext_start + n_read;
-@@ -1374,8 +1587,82 @@
+@@ -1374,8 +1581,82 @@
        buf_alloc = xmalloc (buf_size + buf_alignment);
        buf = ptr_align (buf_alloc, buf_alignment);
  
@@ -352,7 +346,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
        if (! (
  #ifdef SEEK_HOLE
               scantype == LSEEK_SCANTYPE
-@@ -1383,15 +1670,30 @@
+@@ -1383,15 +1664,30 @@
                             scan_inference.ext_start, src_open_sb.st_size,
                             make_holes ? x->sparse_mode : SPARSE_NEVER,
                             x->reflink_mode != REFLINK_NEVER,
@@ -385,7 +379,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
          {
            return_val = false;
            goto close_src_and_dst_desc;
-@@ -1402,6 +1704,14 @@
+@@ -1402,6 +1698,14 @@
            return_val = false;
            goto close_src_and_dst_desc;
          }
