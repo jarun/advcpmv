@@ -1,6 +1,6 @@
 diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
 --- coreutils-8.32/src/copy.c	2020-01-01 15:13:12.000000000 +0100
-+++ coreutils-8.32-patched/src/copy.c	2021-12-24 20:12:31.563582368 +0100
++++ coreutils-8.32-patched/src/copy.c	2021-12-25 11:18:23.578451391 +0100
 @@ -129,6 +129,95 @@
    dev_t dev;
  };
@@ -17,7 +17,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
 +char * escape_double_quotes ( char * _cUnescapedString )
 +{
 +  char * _cEscapedString;
-+  _cEscapedString = (char *) malloc( sizeof(char) * strlen(_cUnescapedString) * 2 );
++  _cEscapedString = (char *) calloc( sizeof(char) * strlen(_cUnescapedString) * 2, sizeof(char) );
 +  size_t ipos = 0;
 +  size_t rpos = 0;
 +  for(rpos = 0, ipos = 0; _cUnescapedString[rpos] != '\0'; rpos++, ipos++)
@@ -443,7 +443,7 @@ diff -aur coreutils-8.32/src/copy.h coreutils-8.32-patched/src/copy.h
  #endif
 diff -aur coreutils-8.32/src/cp.c coreutils-8.32-patched/src/cp.c
 --- coreutils-8.32/src/cp.c	2020-01-01 15:13:12.000000000 +0100
-+++ coreutils-8.32-patched/src/cp.c	2021-12-23 19:29:20.521195377 +0100
++++ coreutils-8.32-patched/src/cp.c	2021-12-25 11:20:32.070133977 +0100
 @@ -131,6 +131,9 @@
    {"symbolic-link", no_argument, NULL, 's'},
    {"target-directory", required_argument, NULL, 't'},
@@ -468,17 +468,26 @@ diff -aur coreutils-8.32/src/cp.c coreutils-8.32-patched/src/cp.c
    -i, --interactive            prompt before overwrite (overrides a previous -n\
  \n\
                                    option)\n\
-@@ -635,6 +645,73 @@
+@@ -635,6 +645,83 @@
          die (EXIT_FAILURE, 0, _("target %s is not a directory"),
               quoteaf (file[n_files - 1]));
      }
 +    /* BEGIN progress mod */
 +    struct timeval start_time;
 +    if (progress) {
-+        g_iTotalSize = 0;
-+        g_iTotalFiles = 0;
-+        g_iFilesCopied = 0;
-+        g_iTotalWritten = 0;
++        if (g_iTotalSize == 0)
++          g_iTotalSize = 0;
++        if (g_iTotalFiles == 0)
++          g_iTotalFiles = n_files;
++        if (g_iFilesCopied == 0)
++          g_iFilesCopied = 0;
++        if (g_iDirectoriesCopied == 0)
++          g_iDirectoriesCopied = 0;
++        if (g_iTotalWritten == 0)
++          g_iTotalWritten = 0;
++
++        if (target_directory_operand (file[0], &sb, &new_dst, forcing))
++          g_iDirectoriesCopied++;
 +
 +        /* save time */
 +        gettimeofday ( & start_time, NULL );
@@ -503,7 +512,8 @@ diff -aur coreutils-8.32/src/cp.c coreutils-8.32-patched/src/cp.c
 +        if ( fp == NULL || fgets(output, sizeof(output)-1, fp) == NULL)
 +            printf("failed to run find\r");
 +        else
-+            g_iTotalFiles = atoi( output );
++            if ( atoi(output) > n_files )
++              g_iTotalFiles = atoi( output );
 +
 +        for (j = 0; j < iFiles; j++)
 +        {
@@ -535,14 +545,14 @@ diff -aur coreutils-8.32/src/cp.c coreutils-8.32-patched/src/cp.c
 +          /* close */
 +          pclose(fp);
 +        }
-+        g_iTotalSize = iTotalSize;
++        g_iTotalSize += iTotalSize;
 +    }
 +    /* END progress mod */
 +
  
    if (target_directory)
      {
-@@ -777,6 +854,46 @@
+@@ -777,6 +864,53 @@
        ok = copy (source, new_dest, 0, x, &unused, NULL);
      }
  
@@ -581,15 +591,22 @@ diff -aur coreutils-8.32/src/cp.c coreutils-8.32-patched/src/cp.c
 +        file_size_format ( s_copy_speed, copy_speed, 1 );
 +
 +        /* good-bye message */
-+        printf ( "%d files (%s) copied in %.1f seconds (%s/s).\n", g_iFilesCopied, sTotalWritten,
-+                 sec_elapsed, s_copy_speed );
++        char sFType[20];
++        if ( g_iDirectoriesCopied > 0 && g_iDirectoriesCopied == g_iFilesCopied )
++          sprintf ( sFType, "%s", "folder(s)" );
++        else if ( g_iDirectoriesCopied > 0 && g_iDirectoriesCopied < g_iFilesCopied )
++          sprintf ( sFType, "%s", "folder(s)/file(s)" );
++        else
++          sprintf ( sFType, "%s", "file(s)" );
++        printf ( "%d %s (%s) copied in %.1f seconds (%s/s).\n", g_iFilesCopied, sFType,
++                 sTotalWritten, sec_elapsed, s_copy_speed );
 +    }
 +    /* END progress mod */
 +
    return ok;
  }
  
-@@ -812,6 +929,7 @@
+@@ -812,6 +946,7 @@
    x->recursive = false;
    x->sparse_mode = SPARSE_AUTO;
    x->symbolic_link = false;
@@ -597,7 +614,7 @@ diff -aur coreutils-8.32/src/cp.c coreutils-8.32-patched/src/cp.c
    x->set_mode = false;
    x->mode = 0;
  
-@@ -950,7 +1068,8 @@
+@@ -950,7 +1085,8 @@
    selinux_enabled = (0 < is_selinux_enabled ());
    cp_option_init (&x);
  
@@ -607,7 +624,7 @@ diff -aur coreutils-8.32/src/cp.c coreutils-8.32-patched/src/cp.c
                             long_opts, NULL))
           != -1)
      {
-@@ -1007,6 +1126,12 @@
+@@ -1007,6 +1143,12 @@
            x.unlink_dest_after_failed_open = true;
            break;
  
