@@ -1,6 +1,6 @@
 diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 --- coreutils-9.0/src/copy.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/copy.c	2021-12-24 20:07:37.109671577 +0100
++++ coreutils-9.0-patched/src/copy.c	2021-12-25 10:56:28.094604761 +0100
 @@ -129,6 +129,95 @@
    dev_t dev;
  };
@@ -430,7 +430,7 @@ diff -aur coreutils-9.0/src/copy.h coreutils-9.0-patched/src/copy.h
  #endif
 diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
 --- coreutils-9.0/src/cp.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/cp.c	2021-12-23 18:46:20.692530921 +0100
++++ coreutils-9.0-patched/src/cp.c	2021-12-25 11:00:50.346873872 +0100
 @@ -131,6 +131,9 @@
    {"symbolic-link", no_argument, NULL, 's'},
    {"target-directory", required_argument, NULL, 't'},
@@ -455,17 +455,26 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
    -i, --interactive            prompt before overwrite (overrides a previous -n\
  \n\
                                    option)\n\
-@@ -634,6 +644,73 @@
+@@ -634,6 +644,83 @@
          die (EXIT_FAILURE, 0, _("target %s is not a directory"),
               quoteaf (file[n_files - 1]));
      }
 +    /* BEGIN progress mod */
 +    struct timeval start_time;
 +    if (progress) {
-+        g_iTotalSize = 0;
-+        g_iTotalFiles = 0;
-+        g_iFilesCopied = 0;
-+        g_iTotalWritten = 0;
++        if (g_iTotalSize == 0)
++          g_iTotalSize = 0;
++        if (g_iTotalFiles == 0)
++          g_iTotalFiles = n_files;
++        if (g_iFilesCopied == 0)
++          g_iFilesCopied = 0;
++        if (g_iDirectoriesCopied == 0)
++          g_iDirectoriesCopied = 0;
++        if (g_iTotalWritten == 0)
++          g_iTotalWritten = 0;
++
++        if (target_directory_operand (file[0], &sb, &new_dst, forcing))
++          g_iDirectoriesCopied++;
 +
 +        /* save time */
 +        gettimeofday ( & start_time, NULL );
@@ -490,7 +499,8 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
 +        if ( fp == NULL || fgets(output, sizeof(output)-1, fp) == NULL)
 +            printf("failed to run find\r");
 +        else
-+            g_iTotalFiles = atoi( output );
++            if ( atoi(output) > n_files )
++              g_iTotalFiles = atoi( output );
 +
 +        for (j = 0; j < iFiles; j++)
 +        {
@@ -522,14 +532,14 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
 +          /* close */
 +          pclose(fp);
 +        }
-+        g_iTotalSize = iTotalSize;
++        g_iTotalSize += iTotalSize;
 +    }
 +    /* END progress mod */
 +
  
    if (target_directory)
      {
-@@ -781,6 +858,46 @@
+@@ -781,6 +868,53 @@
        ok = copy (source, new_dest, 0, x, &unused, NULL);
      }
  
@@ -568,15 +578,22 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
 +        file_size_format ( s_copy_speed, copy_speed, 1 );
 +
 +        /* good-bye message */
-+        printf ( "%d files (%s) copied in %.1f seconds (%s/s).\n", g_iFilesCopied, sTotalWritten,
-+                 sec_elapsed, s_copy_speed );
++        char sFType[20];
++        if ( g_iDirectoriesCopied > 0 && g_iDirectoriesCopied == g_iFilesCopied )
++          sprintf ( sFType, "%s", "folder(s)" );
++        else if ( g_iDirectoriesCopied > 0 && g_iDirectoriesCopied < g_iFilesCopied )
++          sprintf ( sFType, "%s", "folder(s)/file(s)" );
++        else
++          sprintf ( sFType, "%s", "file(s)" );
++        printf ( "%d %s (%s) copied in %.1f seconds (%s/s).\n", g_iFilesCopied, sFType,
++                 sTotalWritten, sec_elapsed, s_copy_speed );
 +    }
 +    /* END progress mod */
 +
    return ok;
  }
  
-@@ -816,6 +933,7 @@
+@@ -816,6 +950,7 @@
    x->recursive = false;
    x->sparse_mode = SPARSE_AUTO;
    x->symbolic_link = false;
@@ -584,7 +601,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
    x->set_mode = false;
    x->mode = 0;
  
-@@ -954,7 +1072,8 @@
+@@ -954,7 +1089,8 @@
    selinux_enabled = (0 < is_selinux_enabled ());
    cp_option_init (&x);
  
@@ -594,7 +611,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
                             long_opts, NULL))
           != -1)
      {
-@@ -1011,6 +1130,12 @@
+@@ -1011,6 +1147,12 @@
            x.unlink_dest_after_failed_open = true;
            break;
  
@@ -607,7 +624,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
          case 'H':
            x.dereference = DEREF_COMMAND_LINE_ARGUMENTS;
            break;
-@@ -1171,6 +1296,11 @@
+@@ -1171,6 +1313,11 @@
        usage (EXIT_FAILURE);
      }
  
