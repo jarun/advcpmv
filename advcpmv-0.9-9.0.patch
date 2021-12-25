@@ -1,6 +1,6 @@
 diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 --- coreutils-9.0/src/copy.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/copy.c	2021-12-25 10:56:28.094604761 +0100
++++ coreutils-9.0-patched/src/copy.c	2021-12-25 11:08:37.969704196 +0100
 @@ -129,6 +129,95 @@
    dev_t dev;
  };
@@ -17,7 +17,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 +char * escape_double_quotes ( char * _cUnescapedString )
 +{
 +  char * _cEscapedString;
-+  _cEscapedString = (char *) malloc( sizeof(char) * strlen(_cUnescapedString) * 2 );
++  _cEscapedString = (char *) calloc( sizeof(char) * strlen(_cUnescapedString) * 2, sizeof(char) );
 +  size_t ipos = 0;
 +  size_t rpos = 0;
 +  for(rpos = 0, ipos = 0; _cUnescapedString[rpos] != '\0'; rpos++, ipos++)
