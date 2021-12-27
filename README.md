@@ -13,8 +13,7 @@ advcpmv-0.5-8.21.patch was the last patch released by the author (on February 14
 Run the following command to download, patch, compile coreutils and generate the files: `./advcpmv/advcp` and `./advcpmv/advmv`.
 
 ```
-curl https://raw.githubusercontent.com/jarun/advcpmv/master/install.sh --create-dirs -o ./advcpmv/install.sh"
-(cd advcpmv && sh install.sh)
+curl https://raw.githubusercontent.com/jarun/advcpmv/master/install.sh --create-dirs -o ./advcpmv/install.sh" && (cd advcpmv && sh install.sh)
 ```
 
 To install an older version than the latest one, you can specify the version by passing it as an argument to the install script. For example, if you want to install `advcpmv-0.8-8.32.patch` you would modify the second command above like so.
