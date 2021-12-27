@@ -14,13 +14,13 @@ Run the following command which will download, patch, then compile coreutils, pr
 
 ```
 curl https://raw.githubusercontent.com/jarun/advcpmv/master/install.sh --create-dirs -o ./advcpmv/install.sh"
-(cd advcpmv && bash install.sh)
+(cd advcpmv && sh install.sh)
 ```
 
 To install an older version than the latest one, you can specify which version you want by passing it as an argument to the install script. For example, if you want to install `advcpmv-0.8-8.32.patch` you would modify the second command above like so.
 
 ```
-(cd advcpmv && bash install.sh 0.8 8.32)
+(cd advcpmv && sh install.sh 0.8 8.32)
 ```
 
 ## Usage
