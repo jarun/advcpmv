@@ -1,7 +1,7 @@
 diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
 --- coreutils-8.32/src/copy.c	2020-01-01 15:13:12.000000000 +0100
-+++ coreutils-8.32-patched/src/copy.c	2021-12-25 11:18:23.578451391 +0100
-@@ -129,6 +129,95 @@
++++ coreutils-8.32-patched/src/copy.c	2022-01-04 21:56:14.545035647 +0100
+@@ -129,6 +129,119 @@
    dev_t dev;
  };
  
@@ -37,6 +37,30 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
 +  ipos++;
 +  _cEscapedString[ipos] = '\0';
 +  return _cEscapedString;
++}
++
++char * format_elapsed_time ( double sec_elapsed )
++{
++  // hours
++  long hr = ( (int) sec_elapsed / (60 * 60)) % 24;
++  // minutes
++  int min = ( (int) sec_elapsed / 60) % 60;
++  // seconds
++  double sec = sec_elapsed - (hr * (60 * 60)) - (min * 60);
++  size_t maxneeded = snprintf(NULL, 0, "%ldh %dm %.1fs", hr, min, sec) + 1;
++  char * _cElapsedTimeString;
++  _cElapsedTimeString = (char *) calloc( sizeof(char) * maxneeded, sizeof(char) );
++  if ( sec_elapsed >= 3600 )
++  {
++    sprintf(_cElapsedTimeString, "%ldh %dm %.1fs", hr, min, sec);
++  } else if ( sec_elapsed >= 60 )
++  {
++    sprintf(_cElapsedTimeString, "%dm %.1fs", min, sec);
++  } else
++  {
++    sprintf(_cElapsedTimeString, "%.1fs", sec);
++  }
++  return _cElapsedTimeString;
 +}
 +
 +static void file_progress_bar ( char * _cDest, int _iBarLength, long _lProgress, long _lTotal )
@@ -97,7 +121,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
  /* Initial size of the cp.dest_info hash table.  */
  #define DEST_INFO_INITIAL_CAPACITY 61
  
-@@ -259,9 +348,16 @@
+@@ -259,9 +372,16 @@
  static bool
  sparse_copy (int src_fd, int dest_fd, char *buf, size_t buf_size,
               size_t hole_size, bool punch_holes,
@@ -115,7 +139,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
  {
    *last_write_made_hole = false;
    *total_n_read = 0;
-@@ -270,6 +366,85 @@
+@@ -270,6 +390,85 @@
  
    while (max_n_read)
      {
@@ -201,7 +225,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
        ssize_t n_read = read (src_fd, buf, MIN (max_n_read, buf_size));
        if (n_read < 0)
          {
-@@ -354,6 +529,14 @@
+@@ -354,6 +553,14 @@
           certain files in /proc or /sys with linux kernels.  */
      }
  
@@ -216,21 +240,25 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
    /* Ensure a trailing hole is created, so that subsequent
       calls of sparse_copy() start at the correct offset.  */
    if (make_hole && ! create_hole (dest_fd, dst_name, punch_holes, psize))
-@@ -420,9 +603,11 @@
- static bool
+@@ -421,8 +628,16 @@
  extent_copy (int src_fd, int dest_fd, char *buf, size_t buf_size,
               size_t hole_size, off_t src_total_size,
--             enum Sparse_type sparse_mode,
-+             enum Sparse_type sparse_mode, bool move_mode,
+              enum Sparse_type sparse_mode,
++             /* BEGIN progress mod */
++             bool move_mode,
++             /* END progress mod */
               char const *src_name, char const *dst_name,
 -             bool *require_normal_copy)
-+             bool *require_normal_copy,
-+             int iCountDown, char ** cProgressField, struct timeval last_time,
-+             int last_size, int iBarLength, struct stat src_open_sb)
++             bool *require_normal_copy
++             /* BEGIN progress mod */
++             , int iCountDown, char ** cProgressField, struct timeval last_time,
++             int last_size, int iBarLength, struct stat src_open_sb
++             /* END progress mod */
++             )
  {
    struct extent_scan scan;
    off_t last_ext_start = 0;
-@@ -553,10 +738,26 @@
+@@ -553,10 +768,26 @@
                last_ext_len = ext_len;
                bool read_hole;
  
@@ -259,7 +287,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
                  goto fail;
  
                dest_pos = ext_start + n_read;
-@@ -1305,6 +1506,75 @@
+@@ -1305,6 +1536,75 @@
        buf_alloc = xmalloc (buf_size + buf_alignment);
        buf = ptr_align (buf_alloc, buf_alignment);
  
@@ -335,18 +363,24 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
        if (sparse_src)
          {
            bool normal_copy_required;
-@@ -1316,7 +1586,9 @@
+@@ -1316,7 +1616,15 @@
            if (extent_copy (source_desc, dest_desc, buf, buf_size, hole_size,
                             src_open_sb.st_size,
                             make_holes ? x->sparse_mode : SPARSE_NEVER,
 -                           src_name, dst_name, &normal_copy_required))
-+                           x->move_mode, src_name, dst_name, &normal_copy_required,
-+                           iCountDown, cProgressField, last_time, last_size,
-+                           iBarLength, src_open_sb))
++                           /* BEGIN progress mod */
++                           x->move_mode,
++                           /* END progress mod */
++                           src_name, dst_name, &normal_copy_required
++                           /* BEGIN progress mod */
++                           , iCountDown, cProgressField, last_time, last_size,
++                           iBarLength, src_open_sb
++                           /* END progress mod */
++                           ))
              goto preserve_metadata;
  
            if (! normal_copy_required)
-@@ -1328,11 +1600,23 @@
+@@ -1328,11 +1636,24 @@
  
        off_t n_read;
        bool wrote_hole_at_eof;
@@ -358,13 +392,13 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
        if (! sparse_copy (source_desc, dest_desc, buf, buf_size,
                           make_holes ? hole_size : 0,
 -                         x->sparse_mode == SPARSE_ALWAYS, src_name, dst_name,
--                         UINTMAX_MAX, &n_read,
--                         &wrote_hole_at_eof))
 +                         x->sparse_mode == SPARSE_ALWAYS,
 +                         /* BEGIN progress mod */
 +                         x->move_mode,
 +                         /* END progress mod */
-+                         src_name, dst_name, UINTMAX_MAX, &n_read,
++                         src_name, dst_name,
+                          UINTMAX_MAX, &n_read,
+-                         &wrote_hole_at_eof))
 +                         &wrote_hole_at_eof
 +                         /* BEGIN progress mod */
 +                         , &s_progress
@@ -373,7 +407,7 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
          {
            return_val = false;
            goto close_src_and_dst_desc;
-@@ -1343,6 +1627,14 @@
+@@ -1343,6 +1664,14 @@
            return_val = false;
            goto close_src_and_dst_desc;
          }
@@ -388,14 +422,16 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
      }
  
  preserve_metadata:
-@@ -1716,15 +2008,15 @@
+@@ -1716,15 +2045,19 @@
        fprintf (stderr,
                 (x->move_mode || x->unlink_dest_before_opening
                  || x->unlink_dest_after_failed_open)
 -               ? _("%s: replace %s, overriding mode %04lo (%s)? ")
 -               : _("%s: unwritable %s (mode %04lo, %s); try anyway? "),
++               /* BEGIN progress mod - remove \n\n in string!*/
 +               ? _("\n\n%s: replace %s, overriding mode %04lo (%s)? ")
 +               : _("\n\n%s: unwritable %s (mode %04lo, %s); try anyway? "),
++               /* END progress mod */
                 program_name, quoteaf (dst_name),
                 (unsigned long int) (dst_sb->st_mode & CHMOD_MODE_BITS),
                 &perms[1]);
@@ -403,13 +439,15 @@ diff -aur coreutils-8.32/src/copy.c coreutils-8.32-patched/src/copy.c
    else
      {
 -      fprintf (stderr, _("%s: overwrite %s? "),
++      /* BEGIN progress mod - remove \n\n in string!*/
 +      fprintf (stderr, _("\n\n%s: overwrite %s? "),
++      /* END progress mod - remove \n\n in string!*/
                 program_name, quoteaf (dst_name));
      }
  
 diff -aur coreutils-8.32/src/copy.h coreutils-8.32-patched/src/copy.h
 --- coreutils-8.32/src/copy.h	2020-01-01 15:13:12.000000000 +0100
-+++ coreutils-8.32-patched/src/copy.h	2021-12-23 12:24:33.256775516 +0100
++++ coreutils-8.32-patched/src/copy.h	2022-01-04 21:56:14.545035647 +0100
 @@ -234,6 +234,11 @@
       Create destination directories as usual. */
    bool symbolic_link;
@@ -422,12 +460,13 @@ diff -aur coreutils-8.32/src/copy.h coreutils-8.32-patched/src/copy.h
    /* If true, do not copy a nondirectory that has an existing destination
       with the same or newer modification time. */
    bool update;
-@@ -304,4 +309,18 @@
+@@ -304,4 +309,19 @@
  bool chown_failure_ok (struct cp_options const *) _GL_ATTRIBUTE_PURE;
  mode_t cached_umask (void);
  
 +/* BEGIN progress mod */
 +char * escape_double_quotes ( char * _cUnescapedString );
++char * format_elapsed_time ( double sec_elapsed );
 +
 +int file_size_format ( char * _cDst, long _lSize, int _iCounter );
 +
@@ -443,7 +482,7 @@ diff -aur coreutils-8.32/src/copy.h coreutils-8.32-patched/src/copy.h
  #endif
 diff -aur coreutils-8.32/src/cp.c coreutils-8.32-patched/src/cp.c
 --- coreutils-8.32/src/cp.c	2020-01-01 15:13:12.000000000 +0100
-+++ coreutils-8.32-patched/src/cp.c	2021-12-25 11:20:32.070133977 +0100
++++ coreutils-8.32-patched/src/cp.c	2022-01-04 21:56:14.545035647 +0100
 @@ -131,6 +131,9 @@
    {"symbolic-link", no_argument, NULL, 's'},
    {"target-directory", required_argument, NULL, 't'},
@@ -598,23 +637,25 @@ diff -aur coreutils-8.32/src/cp.c coreutils-8.32-patched/src/cp.c
 +          sprintf ( sFType, "%s", "folder(s)/file(s)" );
 +        else
 +          sprintf ( sFType, "%s", "file(s)" );
-+        printf ( "%d %s (%s) copied in %.1f seconds (%s/s).\n", g_iFilesCopied, sFType,
-+                 sTotalWritten, sec_elapsed, s_copy_speed );
++        printf ( "%d %s (%s) copied in %s (%s/s).\n", g_iFilesCopied, sFType,
++                 sTotalWritten, format_elapsed_time(sec_elapsed), s_copy_speed );
 +    }
 +    /* END progress mod */
 +
    return ok;
  }
  
-@@ -812,6 +946,7 @@
+@@ -812,6 +946,9 @@
    x->recursive = false;
    x->sparse_mode = SPARSE_AUTO;
    x->symbolic_link = false;
++  /* BEGIN progress mod */
 +  x->progress_bar = false;
++  /* END progress mod */
    x->set_mode = false;
    x->mode = 0;
  
-@@ -950,7 +1085,8 @@
+@@ -950,7 +1087,8 @@
    selinux_enabled = (0 < is_selinux_enabled ());
    cp_option_init (&x);
  
@@ -624,7 +665,7 @@ diff -aur coreutils-8.32/src/cp.c coreutils-8.32-patched/src/cp.c
                             long_opts, NULL))
           != -1)
      {
-@@ -1007,6 +1143,12 @@
+@@ -1007,6 +1145,12 @@
            x.unlink_dest_after_failed_open = true;
            break;
  
@@ -639,7 +680,7 @@ diff -aur coreutils-8.32/src/cp.c coreutils-8.32-patched/src/cp.c
            break;
 diff -aur coreutils-8.32/src/mv.c coreutils-8.32-patched/src/mv.c
 --- coreutils-8.32/src/mv.c	2020-01-01 15:13:12.000000000 +0100
-+++ coreutils-8.32-patched/src/mv.c	2021-12-23 19:31:05.335749444 +0100
++++ coreutils-8.32-patched/src/mv.c	2022-01-04 21:56:14.549035719 +0100
 @@ -66,6 +66,9 @@
    {"target-directory", required_argument, NULL, 't'},
    {"update", no_argument, NULL, 'u'},
@@ -763,8 +804,8 @@ diff -aur coreutils-8.32/src/mv.c coreutils-8.32-patched/src/mv.c
 +        sprintf ( sFType, "%s", "folder(s)/file(s)" );
 +      else
 +        sprintf ( sFType, "%s", "file(s)" );
-+      printf ( "%d %s (%s) moved in %.1f seconds (%s/s).\n", g_iFilesCopied, sFType,
-+               sTotalWritten, sec_elapsed, s_copy_speed );
++      printf ( "%d %s (%s) moved in %s (%s/s).\n", g_iFilesCopied, sFType,
++               sTotalWritten, format_elapsed_time(sec_elapsed), s_copy_speed );
 +    }
 +  }
 +  /* END progress mod */
