@@ -1,6 +1,6 @@
 diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 --- coreutils-9.0/src/copy.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/copy.c	2022-01-04 21:09:38.656916500 +0100
++++ coreutils-9.0-patched/src/copy.c	2022-01-04 21:56:14.549035719 +0100
 @@ -129,6 +129,119 @@
    dev_t dev;
  };
@@ -420,7 +420,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
    if (x->preserve_timestamps)
 diff -aur coreutils-9.0/src/copy.h coreutils-9.0-patched/src/copy.h
 --- coreutils-9.0/src/copy.h	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/copy.h	2022-01-04 21:09:38.660916566 +0100
++++ coreutils-9.0-patched/src/copy.h	2022-01-04 21:56:14.553035790 +0100
 @@ -236,6 +236,11 @@
       Create destination directories as usual. */
    bool symbolic_link;
@@ -455,7 +455,7 @@ diff -aur coreutils-9.0/src/copy.h coreutils-9.0-patched/src/copy.h
  #endif
 diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
 --- coreutils-9.0/src/cp.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/cp.c	2022-01-04 21:09:38.660916566 +0100
++++ coreutils-9.0-patched/src/cp.c	2022-01-04 21:56:14.553035790 +0100
 @@ -131,6 +131,9 @@
    {"symbolic-link", no_argument, NULL, 's'},
    {"target-directory", required_argument, NULL, 't'},
@@ -618,15 +618,19 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
    return ok;
  }
  
-@@ -816,6 +950,7 @@
+@@ -816,6 +950,11 @@
    x->recursive = false;
    x->sparse_mode = SPARSE_AUTO;
    x->symbolic_link = false;
++
++  /* BEGIN progress mod */
 +  x->progress_bar = false;
++  /* END progress mod */
++
    x->set_mode = false;
    x->mode = 0;
  
-@@ -954,7 +1089,8 @@
+@@ -954,7 +1093,8 @@
    selinux_enabled = (0 < is_selinux_enabled ());
    cp_option_init (&x);
  
@@ -636,7 +640,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
                             long_opts, NULL))
           != -1)
      {
-@@ -1011,6 +1147,12 @@
+@@ -1011,6 +1151,12 @@
            x.unlink_dest_after_failed_open = true;
            break;
  
@@ -649,7 +653,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
          case 'H':
            x.dereference = DEREF_COMMAND_LINE_ARGUMENTS;
            break;
-@@ -1171,6 +1313,11 @@
+@@ -1171,6 +1317,11 @@
        usage (EXIT_FAILURE);
      }
  
@@ -663,7 +667,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
                                     version_control_string)
 diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 --- coreutils-9.0/src/mv.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/mv.c	2022-01-04 21:09:38.660916566 +0100
++++ coreutils-9.0-patched/src/mv.c	2022-01-04 21:56:14.553035790 +0100
 @@ -66,6 +66,9 @@
    {"target-directory", required_argument, NULL, 't'},
    {"update", no_argument, NULL, 'u'},
