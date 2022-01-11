@@ -1,6 +1,6 @@
 diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 --- coreutils-9.0/src/copy.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/copy.c	2022-01-11 22:10:44.509858035 +0100
++++ coreutils-9.0-patched/src/copy.c	2022-01-11 23:26:31.735507217 +0100
 @@ -129,6 +129,121 @@
    dev_t dev;
  };
@@ -203,7 +203,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 +              move_mode
 +                ? "%d of %d files moved (about %s remaining) "
 +                : "%d of %d files copied (about %s remaining) ",
-+                g_iFilesCopied, g_iTotalFiles, f_ftime );
++                g_iFilesCopied, g_iTotalFiles, f_ttime );
 +
 +            char s_ftime[40] = "";
 +
@@ -452,7 +452,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
    if (x->preserve_timestamps)
 diff -aur coreutils-9.0/src/copy.h coreutils-9.0-patched/src/copy.h
 --- coreutils-9.0/src/copy.h	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/copy.h	2022-01-11 22:10:44.509858035 +0100
++++ coreutils-9.0-patched/src/copy.h	2022-01-11 23:26:31.739507270 +0100
 @@ -236,6 +236,11 @@
       Create destination directories as usual. */
    bool symbolic_link;
@@ -490,7 +490,7 @@ diff -aur coreutils-9.0/src/copy.h coreutils-9.0-patched/src/copy.h
  #endif
 diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
 --- coreutils-9.0/src/cp.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/cp.c	2022-01-11 22:10:44.513858084 +0100
++++ coreutils-9.0-patched/src/cp.c	2022-01-11 23:26:31.743507323 +0100
 @@ -131,6 +131,9 @@
    {"symbolic-link", no_argument, NULL, 's'},
    {"target-directory", required_argument, NULL, 't'},
@@ -705,7 +705,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
                                     version_control_string)
 diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 --- coreutils-9.0/src/mv.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/mv.c	2022-01-11 22:10:44.513858084 +0100
++++ coreutils-9.0-patched/src/mv.c	2022-01-11 23:26:31.743507323 +0100
 @@ -66,6 +66,9 @@
    {"target-directory", required_argument, NULL, 't'},
    {"update", no_argument, NULL, 'u'},
