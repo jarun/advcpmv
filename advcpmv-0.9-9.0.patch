@@ -1,6 +1,6 @@
 diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
 --- coreutils-9.0/src/copy.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/copy.c	2022-02-13 13:20:13.643469909 +0100
++++ coreutils-9.0-patched/src/copy.c	2022-02-13 16:09:25.450003849 +0100
 @@ -129,6 +129,133 @@
    dev_t dev;
  };
@@ -464,7 +464,7 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
    if (x->preserve_timestamps)
 diff -aur coreutils-9.0/src/copy.h coreutils-9.0-patched/src/copy.h
 --- coreutils-9.0/src/copy.h	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/copy.h	2022-02-13 13:20:13.643469909 +0100
++++ coreutils-9.0-patched/src/copy.h	2022-02-13 16:09:25.454003885 +0100
 @@ -236,6 +236,11 @@
       Create destination directories as usual. */
    bool symbolic_link;
@@ -502,7 +502,7 @@ diff -aur coreutils-9.0/src/copy.h coreutils-9.0-patched/src/copy.h
  #endif
 diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
 --- coreutils-9.0/src/cp.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/cp.c	2022-02-13 13:20:13.647469904 +0100
++++ coreutils-9.0-patched/src/cp.c	2022-02-13 16:09:25.454003885 +0100
 @@ -131,6 +131,9 @@
    {"symbolic-link", no_argument, NULL, 's'},
    {"target-directory", required_argument, NULL, 't'},
@@ -660,7 +660,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
 +          sprintf ( sFType, "%s", "file(s)" );
 +
 +        char f_time[20];
-+        format_time(f_time, sec_elapsed, true);
++        format_time(f_time, sec_elapsed, false);
 +        printf ( "%d %s (%s) copied in %s (%s/s).\n", g_iFilesCopied, sFType,
 +                 sTotalWritten, f_time, s_copy_speed );
 +    }
@@ -718,7 +718,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
                                     version_control_string)
 diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 --- coreutils-9.0/src/mv.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched/src/mv.c	2022-02-13 13:20:13.647469904 +0100
++++ coreutils-9.0-patched/src/mv.c	2022-02-13 16:09:25.458003920 +0100
 @@ -66,6 +66,9 @@
    {"target-directory", required_argument, NULL, 't'},
    {"update", no_argument, NULL, 'u'},
@@ -850,7 +850,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
 +        sprintf ( sFType, "%s", "file(s)" );
 +
 +      char f_time[20];
-+      format_time(f_time, sec_elapsed, true);
++      format_time(f_time, sec_elapsed, false);
 +      printf ( "%d %s (%s) moved in %s (%s/s).\n", g_iFilesCopied, sFType,
 +               sTotalWritten, f_time, s_copy_speed );
 +    }
