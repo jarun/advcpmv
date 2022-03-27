@@ -1,6 +1,6 @@
-diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched-nc/src/copy.c
---- coreutils-9.0/src/copy.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched-nc/src/copy.c	2022-02-14 21:14:14.183157065 +0100
+diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched/src/copy.c
+--- coreutils-9.0/src/copy.c	2021-09-24 17:01:05.000000000 +0530
++++ coreutils-9.0-patched/src/copy.c	2022-03-27 05:54:15.840209369 +0530
 @@ -129,6 +129,133 @@
    dev_t dev;
  };
@@ -430,9 +430,9 @@ diff -aur coreutils-9.0/src/copy.c coreutils-9.0-patched-nc/src/copy.c
      }
  
    if (x->preserve_timestamps)
-diff -aur coreutils-9.0/src/copy.h coreutils-9.0-patched-nc/src/copy.h
---- coreutils-9.0/src/copy.h	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched-nc/src/copy.h	2022-02-14 21:14:14.183157065 +0100
+diff -aur coreutils-9.0/src/copy.h coreutils-9.0-patched/src/copy.h
+--- coreutils-9.0/src/copy.h	2021-09-24 17:01:05.000000000 +0530
++++ coreutils-9.0-patched/src/copy.h	2022-03-27 05:54:15.844209471 +0530
 @@ -236,6 +236,9 @@
       Create destination directories as usual. */
    bool symbolic_link;
@@ -466,9 +466,9 @@ diff -aur coreutils-9.0/src/copy.h coreutils-9.0-patched-nc/src/copy.h
 +/* END progress mod */
 +
  #endif
-diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched-nc/src/cp.c
---- coreutils-9.0/src/cp.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched-nc/src/cp.c	2022-02-14 21:14:14.183157065 +0100
+diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched/src/cp.c
+--- coreutils-9.0/src/cp.c	2021-09-24 17:01:05.000000000 +0530
++++ coreutils-9.0-patched/src/cp.c	2022-03-27 06:28:53.896713403 +0530
 @@ -131,6 +131,7 @@
    {"symbolic-link", no_argument, NULL, 's'},
    {"target-directory", required_argument, NULL, 't'},
@@ -487,7 +487,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched-nc/src/cp.c
    -i, --interactive            prompt before overwrite (overrides a previous -n\
  \n\
                                    option)\n\
-@@ -634,6 +638,84 @@
+@@ -634,6 +638,82 @@
          die (EXIT_FAILURE, 0, _("target %s is not a directory"),
               quoteaf (file[n_files - 1]));
      }
@@ -523,8 +523,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched-nc/src/cp.c
 +        /* how many files are we copying */
 +        FILE *fp ;
 +        char output[1024];
-+        char fcmd[] = "find";
-+        fp = spawn(fcmd, (char *[]){ fcmd, file[0], "-type", "f", NULL });
++        fp = spawn("find", (char *[]){ "find", file[0], "-type", "f", NULL });
 +        if ( fp == NULL)
 +            printf("failed to run find\r");
 +        else
@@ -547,8 +546,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched-nc/src/cp.c
 +        for (j = 0; j < iFiles; j++)
 +        {
 +          /* call du -s for each file */
-+          char dcmd[] = "du";
-+          fp = spawn(dcmd, (char *[]){ dcmd, "-s", file[j], NULL });
++          fp = spawn("du", (char *[]){ "du", "-s", file[j], NULL });
 +          if (fp == NULL || fgets(output, sizeof(output)-1, fp) == NULL) {
 +            printf("failed to run du\r" );
 +          }
@@ -572,7 +570,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched-nc/src/cp.c
  
    if (target_directory)
      {
-@@ -781,6 +863,56 @@
+@@ -781,6 +861,56 @@
        ok = copy (source, new_dest, 0, x, &unused, NULL);
      }
  
@@ -629,7 +627,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched-nc/src/cp.c
    return ok;
  }
  
-@@ -816,6 +948,9 @@
+@@ -816,6 +946,9 @@
    x->recursive = false;
    x->sparse_mode = SPARSE_AUTO;
    x->symbolic_link = false;
@@ -639,7 +637,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched-nc/src/cp.c
    x->set_mode = false;
    x->mode = 0;
  
-@@ -954,7 +1089,8 @@
+@@ -954,7 +1087,8 @@
    selinux_enabled = (0 < is_selinux_enabled ());
    cp_option_init (&x);
  
@@ -649,7 +647,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched-nc/src/cp.c
                             long_opts, NULL))
           != -1)
      {
-@@ -1011,6 +1147,10 @@
+@@ -1011,6 +1145,10 @@
            x.unlink_dest_after_failed_open = true;
            break;
  
@@ -660,7 +658,7 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched-nc/src/cp.c
          case 'H':
            x.dereference = DEREF_COMMAND_LINE_ARGUMENTS;
            break;
-@@ -1171,6 +1311,9 @@
+@@ -1171,6 +1309,9 @@
        usage (EXIT_FAILURE);
      }
  
@@ -670,9 +668,9 @@ diff -aur coreutils-9.0/src/cp.c coreutils-9.0-patched-nc/src/cp.c
    x.backup_type = (make_backups
                     ? xget_version (_("backup type"),
                                     version_control_string)
-diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched-nc/src/mv.c
---- coreutils-9.0/src/mv.c	2021-09-24 13:31:05.000000000 +0200
-+++ coreutils-9.0-patched-nc/src/mv.c	2022-02-14 21:14:14.183157065 +0100
+diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched/src/mv.c
+--- coreutils-9.0/src/mv.c	2021-09-24 17:01:05.000000000 +0530
++++ coreutils-9.0-patched/src/mv.c	2022-03-27 06:38:49.800838574 +0530
 @@ -66,6 +66,7 @@
    {"target-directory", required_argument, NULL, 't'},
    {"update", no_argument, NULL, 'u'},
@@ -681,7 +679,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched-nc/src/mv.c
    {GETOPT_HELP_OPTION_DECL},
    {GETOPT_VERSION_OPTION_DECL},
    {NULL, 0, NULL, 0}
-@@ -170,8 +171,130 @@
+@@ -170,8 +171,128 @@
  {
    bool copy_into_self;
    bool rename_succeeded;
@@ -689,7 +687,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched-nc/src/mv.c
 +  /* BEGIN progress mod */
 +  struct timeval start_time;
 +
-+  if(progress && x->rename_errno != 0) {
++  if (progress && x->rename_errno != 0) {
 +    if (g_iTotalSize == 0)
 +      g_iTotalSize = 0;
 +    if (g_iTotalFiles == 0)
@@ -710,8 +708,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched-nc/src/mv.c
 +    /* how many files are we copying */
 +    FILE *fp ;
 +    char output[1024];
-+    char fcmd[] = "find";
-+    fp = spawn(fcmd, (char *[]){ fcmd, (char *)source, "-type", "f", NULL });
++    fp = spawn("find", (char *[]){ "find", (char *)source, "-type", "f", NULL });
 +    if ( fp == NULL)
 +      printf("failed to run find\r");
 +    else
@@ -735,9 +732,8 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched-nc/src/mv.c
 +    printf ("calculating total size... \r");
 +    fflush (stdout);
 +    long iTotalSize = 0;
-+    /* call du -s for each file */
-+    char dcmd[] = "du";
-+    fp = spawn(dcmd, (char *[]){ dcmd, "-s", (unsigned char *)(size_t)source, NULL });
++    /* call du -s for source */
++    fp = spawn("du", (char *[]){ "du", "-s", (unsigned char *)(size_t)source, NULL });
 +    if (fp == NULL || fgets(output, sizeof(output)-1, fp) == NULL) {
 +      printf("failed to run du\r" );
 +    }
@@ -812,7 +808,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched-nc/src/mv.c
    if (ok)
      {
        char const *dir_to_remove;
-@@ -306,6 +429,7 @@
+@@ -306,6 +427,7 @@
  \n\
    -b                           like --backup but does not accept an argument\n\
    -f, --force                  do not prompt before overwriting\n\
@@ -820,7 +816,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched-nc/src/mv.c
    -i, --interactive            prompt before overwrite\n\
    -n, --no-clobber             do not overwrite an existing file\n\
  If you specify more than one of -i, -f, -n, only the final one takes effect.\n\
-@@ -361,7 +485,7 @@
+@@ -361,7 +483,7 @@
    /* Try to disable the ability to unlink a directory.  */
    priv_set_remove_linkdir ();
  
@@ -829,7 +825,7 @@ diff -aur coreutils-9.0/src/mv.c coreutils-9.0-patched-nc/src/mv.c
           != -1)
      {
        switch (c)
-@@ -407,6 +531,9 @@
+@@ -407,6 +529,9 @@
          case 'v':
            x.verbose = true;
            break;
