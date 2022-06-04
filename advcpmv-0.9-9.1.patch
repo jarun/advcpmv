@@ -928,7 +928,7 @@ diff -aur coreutils-9.1/src/mv.c coreutils-9.1-patched/src/mv.c
    if (ok)
      {
        char const *dir_to_remove;
-@@ -255,6 +376,7 @@
+@@ -255,6 +377,7 @@
  \n\
    -b                           like --backup but does not accept an argument\n\
    -f, --force                  do not prompt before overwriting\n\
@@ -936,7 +936,7 @@ diff -aur coreutils-9.1/src/mv.c coreutils-9.1-patched/src/mv.c
    -i, --interactive            prompt before overwrite\n\
    -n, --no-clobber             do not overwrite an existing file\n\
  If you specify more than one of -i, -f, -n, only the final one takes effect.\n\
-@@ -311,7 +433,7 @@
+@@ -311,7 +434,7 @@
    /* Try to disable the ability to unlink a directory.  */
    priv_set_remove_linkdir ();
  
@@ -945,7 +945,7 @@ diff -aur coreutils-9.1/src/mv.c coreutils-9.1-patched/src/mv.c
           != -1)
      {
        switch (c)
-@@ -347,6 +469,9 @@
+@@ -347,6 +470,9 @@
          case 'v':
            x.verbose = true;
            break;
