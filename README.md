@@ -10,6 +10,10 @@ advcpmv-0.5-8.21.patch was the last patch released by the author (on February 14
 
 ## Build instructions
 
+Requires the following dependencies:
+ - patch
+ - gcc
+
 Run the following command to download, patch, compile coreutils and generate the files: `./advcpmv/advcp` and `./advcpmv/advmv`.
 
 ```
