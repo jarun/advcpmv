@@ -10,16 +10,25 @@ advcpmv-0.5-8.21.patch was the last patch released by the author (on February 14
 
 ## Build instructions
 
+Requires the following dependencies:
+ - patch
+ - gcc
+
 Run the following command to download, patch, compile coreutils and generate the files: `./advcpmv/advcp` and `./advcpmv/advmv`.
 
+Bash:
 ```
 curl https://raw.githubusercontent.com/jarun/advcpmv/master/install.sh --create-dirs -o ./advcpmv/install.sh && (cd advcpmv && sh install.sh)
+```
+Fish:
+```
+curl https://raw.githubusercontent.com/jarun/advcpmv/master/install.sh --create-dirs -o ./advcpmv/install.sh; and begin; cd advcpmv; and sh install.sh; end
 ```
 
 To install an older version than the latest one, you can specify the version by passing it as an argument to the install script (at the end of the command, before the closing parenthesis). For example, if you want to install `advcpmv-0.8-8.32.patch` you would modify the command above like so.
 
 ```
-... && (cd advcpmv && sh install.sh 0.8 8.32)
+... sh install.sh 0.8 8.32 ...
 ```
 
 ## Usage
@@ -42,8 +51,18 @@ You can install the binaries and create aliases for bash (or whatever you use)
 ```
 sudo mv ./advcpmv/advcp /usr/local/bin/
 sudo mv ./advcpmv/advmv /usr/local/bin/
+```
+
+Bash:
+```
 echo alias cp '/usr/local/bin/advcp -g' >> ~/.bashrc
 echo alias mv '/usr/local/bin/advmv -g' >> ~/.bashrc
+```
+Fish:
+```
+echo alias cp '/usr/local/bin/advcp -g' >> ~/.config/fish/config.fish
+echo alias mv '/usr/local/bin/advmv -g' >> ~/.config/fish/config.fish
+```
 ```
 
 ## Upstream merge
