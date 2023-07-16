@@ -1,5 +1,5 @@
---- src/ls.c	2023-03-13 14:08:10.000000000 -0400
-+++ src/ls.c	2023-07-02 16:10:41.947444700 -0400
+--- coreutils-9.3/src/ls.c	2023-03-13 14:08:10.000000000 -0400
++++ coreutils-9.3/src/ls.c	2023-07-02 16:10:41.947444700 -0400
 @@ -2279,18 +2279,11 @@
        if (linelen < 0)
          {
@@ -19,8 +19,8 @@
          }
  #endif
        if (linelen < 0)
---- src/copy.c	2023-04-17 16:43:34.000000000 -0400
-+++ src/copy.c	2023-07-02 16:25:44.187962600 -0400
+--- coreutils-9.3/src/copy.c	2023-04-17 16:43:34.000000000 -0400
++++ coreutils-9.3/src/copy.c	2023-07-02 16:25:44.187962600 -0400
 @@ -121,6 +121,133 @@
    dev_t dev;
  };
@@ -568,8 +568,8 @@
      }
  
    if (x->preserve_timestamps)
---- src/copy.h	2023-04-10 06:14:08.000000000 -0400
-+++ src/copy.h	2023-07-02 16:15:50.875580500 -0400
+--- coreutils-9.3/src/copy.h	2023-04-10 06:14:08.000000000 -0400
++++ coreutils-9.3/src/copy.h	2023-07-02 16:15:50.875580500 -0400
 @@ -249,6 +249,9 @@
       Create destination directories as usual. */
    bool symbolic_link;
@@ -603,8 +603,8 @@
 +/* END progress mod */
 +
  #endif
---- src/cp.cg	2023-04-10 06:14:08.000000000 -0400
-+++ src/cp.c	2023-07-02 16:26:48.895801600 -0400
+--- coreutils-9.3/src/cp.cg	2023-04-10 06:14:08.000000000 -0400
++++ coreutils-9.3/src/cp.c	2023-07-02 16:26:48.895801600 -0400
 @@ -140,6 +140,7 @@
    {"symbolic-link", no_argument, NULL, 's'},
    {"target-directory", required_argument, NULL, 't'},
@@ -802,8 +802,8 @@
    x.backup_type = (make_backups
                     ? xget_version (_("backup type"),
                                     version_control_string)
---- src/mv.c	2023-04-10 06:14:08.000000000 -0400
-+++ src/mv.c	2023-07-02 16:19:42.433714100 -0400
+--- coreutils-9.3/src/mv.c	2023-04-10 06:14:08.000000000 -0400
++++ coreutils-9.3/src/mv.c	2023-07-02 16:19:42.433714100 -0400
 @@ -79,6 +79,7 @@
    {"target-directory", required_argument, NULL, 't'},
    {"update", optional_argument, NULL, 'u'},
