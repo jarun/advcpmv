@@ -11,7 +11,7 @@ rm coreutils-$CORE_UTILS_VERSION.tar.xz
 (
     cd coreutils-$CORE_UTILS_VERSION/
     curl -LO https://raw.githubusercontent.com/jarun/advcpmv/master/advcpmv-$ADVCPMV_VERSION-$CORE_UTILS_VERSION.patch
-    patch -p1 -i advcpmv-$ADVCPMV_VERSION-$CORE_UTILS_VERSION.patch
+    patch -p1 -i ../advcpmv-$ADVCPMV_VERSION-$CORE_UTILS_VERSION.patch
     ./configure
     make
     cp ./src/cp ../advcp
