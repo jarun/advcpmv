@@ -1,6 +1,6 @@
 ![advcpmv](https://web.archive.org/web/20131217004029im_/http://beatex.org/web/advcopy/advcpmv-screen-20130313.png)
 
-## Advanced Copy ##
+## Advanced Copy
 
 Advanced Copy is a mod for the GNU cp and GNU mv tools which adds a progress bar and provides some info on what's going on. It was written by Florian Zwicke and released under the GPL.
 
@@ -11,16 +11,20 @@ advcpmv-0.5-8.21.patch was the last patch released by the author (on February 14
 ## Build instructions
 
 Requires the following dependencies:
- - patch
- - gcc
+
+- patch
+- gcc
 
 Run the following command to download, patch, compile coreutils and generate the files: `./advcpmv/advcp` and `./advcpmv/advmv`.
 
 Bash:
+
 ```
 curl https://raw.githubusercontent.com/jarun/advcpmv/master/install.sh --create-dirs -o ./advcpmv/install.sh && (cd advcpmv && sh install.sh)
 ```
+
 Fish:
+
 ```
 curl https://raw.githubusercontent.com/jarun/advcpmv/master/install.sh --create-dirs -o ./advcpmv/install.sh; and begin; cd advcpmv; and sh install.sh; end
 ```
@@ -54,17 +58,21 @@ sudo mv ./advcpmv/advmv /usr/local/bin/
 ```
 
 Bash:
+
 ```
-echo alias cp '/usr/local/bin/advcp -g' >> ~/.bashrc
-echo alias mv '/usr/local/bin/advmv -g' >> ~/.bashrc
+echo -e 'alias cp=\x27/usr/local/bin/cpg -g\x27' >> ~/.bashrc
+echo -e 'alias mv=\x27/usr/local/bin/mvg -g\x27' >> ~/.bashrc
 ```
+
 Fish:
+
 ```
 echo alias cp '/usr/local/bin/advcp -g' >> ~/.config/fish/config.fish
 echo alias mv '/usr/local/bin/advmv -g' >> ~/.config/fish/config.fish
 ```
-```
 
+```
 ## Upstream merge
 
 The original author sent the patch to the team, that maintains the GNU CoreUtils. They won't merge this patch, because mv and cp are feature complete.
+```
