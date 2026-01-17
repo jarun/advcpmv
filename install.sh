@@ -3,7 +3,7 @@
 set -e
 
 ADVCPMV_VERSION=${1:-0.9}
-CORE_UTILS_VERSION=${2:-9.5}
+CORE_UTILS_VERSION=${2:-9.7}
 
 curl -LO https://ftp.gnu.org/gnu/coreutils/coreutils-$CORE_UTILS_VERSION.tar.xz
 tar xvJf coreutils-$CORE_UTILS_VERSION.tar.xz
