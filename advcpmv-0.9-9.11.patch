@@ -1,0 +1,932 @@
+--- coreutils-9.11/src/copy-file-data.c	2026-07-23 09:47:29.805900811 -0600
++++ coreutils-9.11k/src/copy-file-data.c	2026-07-23 09:47:29.837329370 -0600
+@@ -28,6 +28,153 @@
+ #include "full-write.h"
+ #include "ioblksize.h"
+ 
++#include <sys/ioctl.h>
++#include <termios.h>
++
++/* BEGIN progress mod */
++
++/* The progress globals (g_iTotalSize, g_iTotalWritten, ...) count KiB, not
++   bytes, because the prescan in cp.c/mv.c derives totals from "du -s" which
++   reports KiB blocks.  Divide a raw byte count by this before accumulating.  */
++#define PROGRESS_BYTES_PER_KIB 1024
++
++/* Each progress row is iBarLength chars wide.  The right-aligned size readout
++   produced by file_size_format ("542.3 MiB") is written starting this many
++   columns from the end of the row so it sits just left of the bar tail.  */
++#define PROGRESS_SIZE_COL 21
++
++struct progress_status {
++  int iCountDown;
++  char ** cProgressField;
++  struct timeval last_time;
++  int last_size, iBarLength;
++  struct stat src_open_sb;
++};
++
++/* Progress state for the file currently being copied.  Set up in
++   copy_file_data (which has the cp_options and source size) and read by
++   sparse_copy/lseek_copy while they run.  Only touched when the global
++   progress flag is set.  */
++static struct progress_status g_s_progress;
++
++FILE * spawn( const char *cmd, char *const argv[] )
++{
++    FILE *ret = NULL;
++    int pfd_read[2];
++    pid_t pid;
++
++    if (cmd == NULL || argv == NULL)
++        return ret;
++
++    if (pipe(pfd_read) < 0) {
++        error(0, errno, "pipe: %s", cmd);
++        return ret;
++    }
++
++    if ((pid = fork()) == 0) {
++        int err = dup2(pfd_read[1], 1) < 0;
++        close(pfd_read[0]);
++        close(pfd_read[1]);
++
++        if (err)
++            error(EXIT_FAILURE, errno, "dup2: %s", cmd);
++        execvp(cmd, argv);
++        error(EXIT_FAILURE, errno, "exec: %s", cmd);
++    }
++
++    close(pfd_read[1]);
++
++    if (pid < 0) {
++        close(pfd_read[0]);
++        error(0, errno, "fork: %s", cmd);
++        return ret;
++    }
++
++    ret = fdopen(pfd_read[0], "r");
++    return ret;
++}
++
++void format_time ( char * _cDest, double seconds, bool showall )
++{
++  /* hours */
++  int hr = ( (int) seconds / (60 * 60)) % 24;
++  /* minutes */
++  int min = ( (int) seconds / 60) % 60;
++  /* seconds */
++  double sec = seconds - (hr * (60 * 60)) - (min * 60);
++  if ( showall )
++  {
++    if ( seconds < 0 )
++      sprintf(_cDest, "%2ch %2cm %2cs", '0', '0', '?');
++    else
++      sprintf(_cDest, "%2dh %2dm %2ds", hr, min, (int) sec);
++  } else  if ( seconds >= 3600 )
++  {
++    sprintf(_cDest, "%2dh %2dm %4.1fs", hr, min, sec);
++  } else if ( seconds >= 60 )
++  {
++    sprintf(_cDest, "%2dm %4.1fs", min, sec);
++  } else
++  {
++    sprintf(_cDest, "%4.1fs", sec);
++  }
++}
++
++static void file_progress_bar ( char * _cDest, int _iBarLength, long _lProgress, long _lTotal )
++{
++    double dPercent = (double) _lProgress / (double) _lTotal * 100.f;
++    sprintf( _cDest + ( _iBarLength - 6), "%4.1f", dPercent );
++    _cDest[_iBarLength - 2] = ' ';
++
++    int i;
++    for ( i=1; i<=_iBarLength - 9; i++)
++    {
++        if ( dPercent > (double) (i-1) / (_iBarLength - 10) * 100.f )
++        {
++            _cDest[i] = '=';
++        }
++        else
++        {
++            _cDest[i] = ' ';
++        }
++    }
++    for ( i=1; i<_iBarLength - 9; i++)
++    {
++        if ( ( _cDest[i+1] == ' ' ) && ( _cDest[i] == '=' ) )
++            _cDest[i] = '>' ;
++    }
++}
++
++int file_size_format ( char * _cDst, long _lSize, int _iCounter )
++{
++  int iCounter = _iCounter;
++  double dSize = ( double ) _lSize;
++  while ( dSize >= 1000. )
++  {
++    dSize /= 1024.;
++    iCounter++;
++  }
++
++  /* get unit */
++  char * sUnit;
++  if ( iCounter == 0 )
++    sUnit = "B";
++  else if ( iCounter == 1 )
++    sUnit = "KiB";
++  else if ( iCounter == 2 )
++    sUnit = "MiB";
++  else if ( iCounter == 3 )
++    sUnit = "GiB";
++  else if ( iCounter == 4 )
++    sUnit = "TiB";
++  else
++    sUnit = "N/A";
++
++  /* write number */
++  return sprintf ( _cDst, "%5.1f %s", dSize, sUnit );
++}
++/* END progress mod */
++
+ /* Result of infer_scantype when it returns LSEEK_SCANTYPE.  */
+ struct scan_inference
+ {
+@@ -117,6 +264,16 @@
+ {
+   count_t total_n_read = 0;
+ 
++  /* BEGIN progress mod */
++  if (progress) {
++    gettimeofday ( & g_oFStartTime, NULL );
++    g_iFTotalWritten = 0;
++    struct stat st;
++    stat(src_name, &st);
++    g_iFTotalSize = st.st_size / PROGRESS_BYTES_PER_KIB;
++  }
++  /* END progress mod */
++
+   if (debug->sparse_detection == COPY_DEBUG_UNKNOWN)
+     debug->sparse_detection = hole_size ? COPY_DEBUG_YES : COPY_DEBUG_NO;
+   else if (hole_size && debug->sparse_detection == COPY_DEBUG_EXTERNAL)
+@@ -131,6 +288,100 @@
+            (SSIZE_MAX, SIZE_MAX) truncated to a value that is
+            surely aligned well.  */
+         ssize_t copy_max = MIN (SSIZE_MAX, SIZE_MAX) >> 30 << 30;
++
++        /* BEGIN progress mod */
++        if (progress) {
++          /* update countdown */
++          g_s_progress.iCountDown--;
++          char * sProgressBar = g_s_progress.cProgressField[5];
++          if ( g_s_progress.iCountDown < 0 )
++            g_s_progress.iCountDown = 100;
++
++          /* just print one line with the percentage, but not always */
++          if ( g_s_progress.iCountDown == 0 )
++          {
++            /* calculate current speed */
++            struct timeval cur_time;
++            gettimeofday ( & cur_time, NULL );
++            int cur_size = g_iTotalWritten + total_n_read / PROGRESS_BYTES_PER_KIB;
++            int cur_fsize = g_iFTotalWritten + total_n_read / PROGRESS_BYTES_PER_KIB;
++            int usec_elapsed = cur_time.tv_usec - g_s_progress.last_time.tv_usec;
++            double sec_elapsed = ( double ) usec_elapsed / 1000000.f;
++            sec_elapsed += ( double ) ( cur_time.tv_sec - g_s_progress.last_time.tv_sec );
++            int copy_speed = ( int ) ( ( double ) ( cur_size - g_s_progress.last_size )
++              / sec_elapsed );
++            char s_copy_speed[PROGRESS_NUM_BUF];
++            file_size_format ( s_copy_speed, copy_speed >= 0 ? copy_speed : 0, 1 );
++            /* update vars */
++            g_s_progress.last_time = cur_time;
++            g_s_progress.last_size = cur_size;
++
++            /* how many time has passed since the start? */
++            int isec_elapsed = cur_time.tv_sec - g_oStartTime.tv_sec;
++            int isec_felapsed = cur_time.tv_sec - g_oFStartTime.tv_sec;
++            int sec_remaining = ( int ) ( ( double ) isec_elapsed / cur_size
++              * g_iTotalSize ) - isec_elapsed;
++            int sec_fremaining = ( int ) ( ( double ) isec_felapsed / cur_fsize
++              * g_iFTotalSize ) - isec_felapsed;
++            /* print out */
++
++            char f_ttime[PROGRESS_NUM_BUF];
++            char f_ftime[PROGRESS_NUM_BUF];
++            format_time(f_ttime, sec_remaining, true);
++            format_time(f_ftime, sec_fremaining, true);
++
++            int fs_len;
++            fs_len = sprintf ( g_s_progress.cProgressField[1],
++              "%d of %d files copied (about %s remaining)",
++                g_iFilesCopied, g_iTotalFiles, f_ttime );
++            g_s_progress.cProgressField[1][fs_len] = ' ';
++
++            char s_ftime[PROGRESS_ETA_BUF] = "";
++
++            if (g_iTotalFiles > 1)
++              sprintf ( s_ftime, "(about %s remaining)", f_ftime );
++            else
++              sprintf ( s_ftime, "(about %s remaining)", f_ttime );
++
++            if ( g_iTotalFiles > 1 )
++            {
++              /* global progress bar */
++              file_progress_bar ( g_s_progress.cProgressField[2], g_s_progress.iBarLength,
++                                  g_iTotalWritten + total_n_read / PROGRESS_BYTES_PER_KIB, g_iTotalSize );
++
++              /* print the global status */
++              fs_len = file_size_format ( g_s_progress.cProgressField[1] + g_s_progress.iBarLength - PROGRESS_SIZE_COL,
++                                              g_iTotalWritten + total_n_read / PROGRESS_BYTES_PER_KIB, 1 );
++              g_s_progress.cProgressField[1][g_s_progress.iBarLength - PROGRESS_SIZE_COL + fs_len] = ' ';
++            }
++
++            /* set current progress bar to be always 100 % */
++            file_progress_bar ( sProgressBar, g_s_progress.iBarLength, g_s_progress.src_open_sb.st_size, g_s_progress.src_open_sb.st_size );
++            g_s_progress.cProgressField[5][g_s_progress.iBarLength-2] = '0';
++            g_s_progress.cProgressField[5][g_s_progress.iBarLength-1] = '%';
++            g_s_progress.cProgressField[5][g_s_progress.iBarLength] = '\0';
++
++            /* print the status as always full filesize*/
++            fs_len = file_size_format ( g_s_progress.cProgressField[4] + g_s_progress.iBarLength - PROGRESS_SIZE_COL, g_s_progress.src_open_sb.st_size, 0 );
++            g_s_progress.cProgressField[4][g_s_progress.iBarLength - PROGRESS_SIZE_COL + fs_len] = ' ';
++
++            /* print the field */
++            int it;
++            for ( it = g_iTotalFiles>1 ? 0 : 3; it < 6; it++ )
++            {
++              printf ( "\033[K%s\n", g_s_progress.cProgressField[it] );
++              if ( strlen ( g_s_progress.cProgressField[it] ) < (size_t) g_s_progress.iBarLength )
++                printf ( "%s", "" );
++            }
++            if ( g_iTotalFiles > 1 )
++              printf ( "\r\033[6A" );
++            else
++              printf ( "\r\033[3A" );
++            fflush ( stdout );
++          }
++        }
++        /* END progress mod */
++
+         ssize_t n_copied = copy_file_range (src_fd, NULL, dest_fd, NULL,
+                                             MIN (max_n_read, copy_max), 0);
+         if (n_copied == 0)
+@@ -182,6 +433,14 @@
+         debug->offload = COPY_DEBUG_YES;
+         max_n_read -= n_copied;
+         total_n_read += n_copied;
++
++        /* BEGIN progress mod */
++        if (progress) {
++          /* update total size */
++          g_iTotalWritten += total_n_read / PROGRESS_BYTES_PER_KIB;
++          g_iFilesCopied++;
++        }
++        /* END progress mod */
+       }
+   else
+     debug->offload = COPY_DEBUG_AVOIDED;
+@@ -192,6 +451,98 @@
+ 
+   while (0 < max_n_read)
+     {
++    /* BEGIN progress mod */
++    if (progress) {
++          /* update countdown */
++          g_s_progress.iCountDown--;
++          char * sProgressBar = g_s_progress.cProgressField[5];
++          if ( g_s_progress.iCountDown < 0 )
++            g_s_progress.iCountDown = 100;
++
++          /* just print one line with the percentage, but not always */
++          if ( g_s_progress.iCountDown == 0 )
++          {
++            /* calculate current speed */
++            struct timeval cur_time;
++            gettimeofday ( & cur_time, NULL );
++            int cur_size = g_iTotalWritten + total_n_read / PROGRESS_BYTES_PER_KIB;
++            int cur_fsize = g_iFTotalWritten + total_n_read / PROGRESS_BYTES_PER_KIB;
++            int usec_elapsed = cur_time.tv_usec - g_s_progress.last_time.tv_usec;
++            double sec_elapsed = ( double ) usec_elapsed / 1000000.f;
++            sec_elapsed += ( double ) ( cur_time.tv_sec - g_s_progress.last_time.tv_sec );
++            int copy_speed = ( int ) ( ( double ) ( cur_size - g_s_progress.last_size )
++              / sec_elapsed );
++            char s_copy_speed[PROGRESS_NUM_BUF];
++            file_size_format ( s_copy_speed, copy_speed >= 0 ? copy_speed : 0, 1 );
++            /* update vars */
++            g_s_progress.last_time = cur_time;
++            g_s_progress.last_size = cur_size;
++
++            /* how many time has passed since the start? */
++            int isec_elapsed = cur_time.tv_sec - g_oStartTime.tv_sec;
++            int isec_felapsed = cur_time.tv_sec - g_oFStartTime.tv_sec;
++            int sec_remaining = ( int ) ( ( double ) isec_elapsed / cur_size
++              * g_iTotalSize ) - isec_elapsed;
++            int sec_fremaining = ( int ) ( ( double ) isec_felapsed / cur_fsize
++              * g_iFTotalSize ) - isec_felapsed;
++            /* print out */
++
++            char f_ttime[PROGRESS_NUM_BUF];
++            char f_ftime[PROGRESS_NUM_BUF];
++            format_time(f_ttime, sec_remaining, true);
++            format_time(f_ftime, sec_fremaining, true);
++
++            int fs_len;
++            fs_len = sprintf ( g_s_progress.cProgressField[1],
++              "%d of %d files copied (about %s remaining)",
++                g_iFilesCopied, g_iTotalFiles, f_ttime );
++            g_s_progress.cProgressField[1][fs_len] = ' ';
++
++            char s_ftime[PROGRESS_ETA_BUF] = "";
++
++            if (g_iTotalFiles > 1)
++              sprintf ( s_ftime, "(about %s remaining)", f_ftime );
++            else
++              sprintf ( s_ftime, "(about %s remaining)", f_ttime );
++
++            sprintf ( g_s_progress.cProgressField[3],
++              "copying at %s/s %s", s_copy_speed, s_ftime );
++            if ( g_iTotalFiles > 1 )
++            {
++              /* global progress bar */
++              file_progress_bar ( g_s_progress.cProgressField[2], g_s_progress.iBarLength,
++                                  g_iTotalWritten + total_n_read / PROGRESS_BYTES_PER_KIB, g_iTotalSize );
++
++              /* print the global status */
++              fs_len = file_size_format ( g_s_progress.cProgressField[1] + g_s_progress.iBarLength - PROGRESS_SIZE_COL,
++                                              g_iTotalWritten + total_n_read / PROGRESS_BYTES_PER_KIB, 1 );
++              g_s_progress.cProgressField[1][g_s_progress.iBarLength - PROGRESS_SIZE_COL + fs_len] = ' ';
++            }
++
++            /* current progress bar */
++            file_progress_bar ( sProgressBar, g_s_progress.iBarLength, total_n_read, g_s_progress.src_open_sb.st_size );
++
++            /* print the status */
++            fs_len = file_size_format ( g_s_progress.cProgressField[4] + g_s_progress.iBarLength - PROGRESS_SIZE_COL, total_n_read, 0 );
++            g_s_progress.cProgressField[4][g_s_progress.iBarLength - PROGRESS_SIZE_COL + fs_len] = ' ';
++
++            /* print the field */
++            int it;
++            for ( it = g_iTotalFiles>1 ? 0 : 3; it < 6; it++ )
++            {
++              printf ( "\033[K%s\n", g_s_progress.cProgressField[it] );
++              if ( strlen ( g_s_progress.cProgressField[it] ) < (size_t) g_s_progress.iBarLength )
++                printf ( "%s", "" );
++            }
++            if ( g_iTotalFiles > 1 )
++              printf ( "\r\033[6A" );
++            else
++              printf ( "\r\033[3A" );
++            fflush ( stdout );
++          }
++    }
++    /* END progress mod */
++
+       if (!*abuf)
+         *abuf = xalignalloc (getpagesize (), buf_size);
+       char *buf = *abuf;
+@@ -270,6 +621,14 @@
+          certain files in /proc or /sys with linux kernels.  */
+     }
+ 
++  /* BEGIN progress mod */
++  if (progress) {
++    /* update total size */
++    g_iTotalWritten += total_n_read / PROGRESS_BYTES_PER_KIB;
++    g_iFilesCopied++;
++  }
++  /* END progress mod */
++
+   if (hole_size)
+     *hole_size = make_hole ? psize : 0;
+   return total_n_read;
+@@ -602,6 +961,86 @@
+   intmax_t result;
+   off_t hole_size = 0;
+ 
++  /* BEGIN progress mod */
++  /* Set up the per-file progress field that sparse_copy/lseek_copy render
++     into.  g_s_progress is a file-scope global read by those functions.  */
++  char ** cProgressField = NULL;
++  if (progress)
++    {
++      struct stat src_open_sb = *ist;
++
++      /* create a field of 6 lines */
++      cProgressField = ( char ** ) calloc ( 6, sizeof ( char * ) );
++      /* get console width */
++      int iBarLength = 80;
++      struct winsize win;
++      if ( ioctl (STDOUT_FILENO, TIOCGWINSZ, (char *) &win) == 0 && win.ws_col > 0 )
++         if (win.ws_col > iBarLength) /* String printed may be longer on smaller screens */
++            iBarLength = win.ws_col;
++      /* create rows */
++      int it;
++      for ( it = 0; it < 6; it++ )
++      {
++        cProgressField[it] = ( char * ) malloc ( iBarLength + 1 );
++        /* init with spaces */
++        int j;
++        for ( j = 0; j < iBarLength; j++ )
++          cProgressField[it][j] = ' ';
++        cProgressField[it][iBarLength] = '\0';
++      }
++
++      /* global progress bar? */
++      if ( g_iTotalFiles > 1 )
++      {
++        /* init global progress bar */
++        cProgressField[2][0] = '[';
++        cProgressField[2][iBarLength - 8] = ']';
++        cProgressField[2][iBarLength - 7] = ' ';
++        cProgressField[2][iBarLength - 1] = '%';
++
++        /* total size */
++        cProgressField[1][iBarLength - 11] = '/';
++        file_size_format ( cProgressField[1] + iBarLength - 9, g_iTotalSize, 1 );
++
++        /* show how many files were written */
++        int sum_length = 0;
++        sum_length = sprintf ( cProgressField[1],
++          x->move_mode
++            ? "%d of %d files moved so far"
++            : "%d of %d files copied so far", g_iFilesCopied, g_iTotalFiles );
++        cProgressField[1][sum_length] = ' ';
++      }
++
++      /* truncate filename? */
++      int fn_length;
++      if ( strlen ( iname ) > (size_t) (iBarLength - 22) )
++        fn_length =
++          sprintf ( cProgressField[4], "...%s", iname + ( strlen ( iname ) - iBarLength + 25 ) );
++      else
++        fn_length = sprintf ( cProgressField[4], "%s", iname );
++      cProgressField[4][fn_length] = ' ';
++
++      /* filesize */
++      cProgressField[4][iBarLength - 11] = '/';
++      file_size_format ( cProgressField[4] + iBarLength - 9, src_open_sb.st_size, 0 );
++
++      int iCountDown = 1;
++      char * sProgressBar = cProgressField[5];
++      sProgressBar[0] = '[';
++      sProgressBar[iBarLength - 8] = ']';
++      sProgressBar[iBarLength - 7] = ' ';
++      sProgressBar[iBarLength - 1] = '%';
++
++      /* this will always save the time in between */
++      struct timeval last_time;
++      gettimeofday ( & last_time, NULL );
++      int last_size = g_iTotalWritten;
++
++      g_s_progress = ( struct progress_status )
++        { iCountDown, cProgressField, last_time, last_size, iBarLength, src_open_sb };
++    }
++  /* END progress mod */
++
+   if (scantype == LSEEK_SCANTYPE)
+     {
+ #ifdef SEEK_HOLE
+@@ -641,6 +1080,15 @@
+         }
+     }
+ 
++  /* BEGIN progress mod */
++  if (progress && cProgressField) {
++    int i;
++    for ( i = 0; i < 6; i++ )
++      free ( cProgressField[i] );
++    free ( cProgressField );
++  }
++  /* END progress mod */
++
+   alignfree (buf);
+   return result;
+ }
+--- coreutils-9.11/src/copy.h	2026-07-23 09:47:29.805951169 -0600
++++ coreutils-9.11k/src/copy.h	2026-07-23 09:47:29.837358788 -0600
+@@ -255,6 +255,9 @@
+      Create destination directories as usual. */
+   bool symbolic_link;
+ 
++  /* If true, draw a nice progress bar on screen */
++  bool progress_bar;
++
+   /* Control if destination files are replaced.  */
+   enum Update_type update;
+ 
+@@ -360,4 +363,32 @@
+   _GL_ATTRIBUTE_NONNULL () _GL_ATTRIBUTE_PURE;
+ mode_t cached_umask (void);
+ 
++/* BEGIN progress mod */
++
++/* Scratch-buffer sizes for the short formatted strings the progress code
++   builds with sprintf.  PROGRESS_NUM_BUF holds a file_size_format /
++   format_time result ("542.3 MiB", "1h  2m  3.4s").  PROGRESS_ETA_BUF holds
++   the longer "(about ... remaining)" string.  PROGRESS_FTYPE_BUF holds the
++   file-type label ("folder(s)/file(s)" is the longest at 17 chars).  */
++#define PROGRESS_NUM_BUF 20
++#define PROGRESS_ETA_BUF 40
++#define PROGRESS_FTYPE_BUF 20
++
++FILE * spawn( const char *cmd, char *const argv[] );
++void format_time ( char * _cDst, double seconds, bool showall );
++
++int file_size_format ( char * _cDst, long _lSize, int _iCounter );
++
++__attribute__((__common__)) long g_iTotalSize;
++__attribute__((__common__)) long g_iFTotalSize;
++__attribute__((__common__)) long g_iTotalWritten;
++__attribute__((__common__)) long g_iFTotalWritten;
++__attribute__((__common__)) int g_iFilesCopied;
++__attribute__((__common__)) int g_iDirectoriesCopied;
++__attribute__((__common__)) struct timeval g_oStartTime;
++__attribute__((__common__)) struct timeval g_oFStartTime;
++__attribute__((__common__)) int g_iTotalFiles;
++__attribute__((__common__)) bool progress;
++/* END progress mod */
++
+ #endif
+--- coreutils-9.11/src/cp.c	2026-07-23 09:47:29.806107878 -0600
++++ coreutils-9.11k/src/cp.c	2026-07-23 09:47:29.837379316 -0600
+@@ -141,6 +141,7 @@
+   {"symbolic-link", no_argument, NULL, 's'},
+   {"target-directory", required_argument, NULL, 't'},
+   {"update", optional_argument, NULL, 'u'},
++  {"progress-bar", no_argument, NULL, 'g'},
+   {"verbose", no_argument, NULL, 'v'},
+   {"keep-directory-symlink", no_argument, NULL,
+     KEEP_DIRECTORY_SYMLINK_OPTION},
+@@ -203,6 +204,11 @@
+          again (this option is ignored when the -n option is also used)\n\
+ "));
+       oputs (_("\
++  -g, --progress-bar\n\
++         add a progress bar.  Note that this doesn't work with reflink;\n\
++         reflink will be automatically disabled\n\
++"));
++      oputs (_("\
+   -i, --interactive\n\
+          prompt before overwrite (overrides a previous -n option)\n\
+ "));
+@@ -737,6 +743,74 @@
+         }
+     }
+ 
++    /* BEGIN progress mod */
++    struct timeval start_time;
++    if (progress) {
++        if (g_iTotalFiles == 0)
++          g_iTotalFiles = n_files;
++
++        if (target_directory_operand (file[0], &sb) >= 0)
++          g_iDirectoriesCopied++;
++
++        /* save time */
++        gettimeofday ( & start_time, NULL );
++        g_oStartTime = start_time;
++
++        printf ( "calculating total size... \r" );
++        fflush ( stdout );
++        long iTotalSize = 0;
++        int iFiles = n_files;
++        if ( ! target_directory )
++          iFiles = n_files - 1;
++        int j;
++
++        /* how many files are we copying */
++        FILE *fp ;
++        char output[1024];
++        fp = spawn("find", (char *[]){ "find", file[0], "-type", "f", NULL });
++        if ( fp == NULL)
++            printf("failed to run find\r");
++        else
++        {
++          char *line_buf = NULL;
++          size_t line_buf_size = 0;
++          int line_count = 0;
++          ssize_t line_size;
++          line_size = getline(&line_buf, &line_buf_size, fp);
++          while (line_size > 0)
++          {
++              line_count++;
++              line_size = getline(&line_buf, &line_buf_size, fp);
++          }
++          free (line_buf);
++          if ( line_count > n_files )
++            g_iTotalFiles = line_count;
++        }
++
++        for (j = 0; j < iFiles; j++)
++        {
++          /* call du -s for each file */
++          fp = spawn("du", (char *[]){ "du", "-s", file[j], NULL });
++          if (fp == NULL || fgets(output, sizeof(output)-1, fp) == NULL) {
++            printf("failed to run du\r" );
++          }
++          else
++          {
++            /* isolate size */
++            strchr ( output, '\t' )[0] = '\0';
++            iTotalSize += atol ( output );
++
++            printf ( "calculating total size... %ld\r", iTotalSize );
++            fflush ( stdout );
++          }
++
++          /* close */
++          pclose(fp);
++        }
++        g_iTotalSize += iTotalSize;
++    }
++    /* END progress mod */
++
+   if (target_directory)
+     {
+       /* cp file1...filen edir
+@@ -876,6 +950,56 @@
+       ok = copy (source, dest, AT_FDCWD, dest, -new_dst, x, &unused, NULL);
+     }
+ 
++    /* BEGIN progress mod */
++    if (progress) {
++        /* remove everything */
++        int i;
++        if ( g_iTotalFiles > 1 )
++        {
++          for ( i = 0; i < 6; i++ )
++            printf ( "\033[K\n" );
++          printf ( "\r\033[6A" );
++        }
++        else
++        {
++          for ( i = 0; i < 3; i++ )
++            printf ( "\033[K\n" );
++          printf ( "\r\033[3A" );
++        }
++
++        /* save time */
++        struct timeval end_time;
++        gettimeofday ( & end_time, NULL );
++        int usec_elapsed = end_time.tv_usec - start_time.tv_usec;
++        double sec_elapsed = ( double ) usec_elapsed / 1000000.f;
++        sec_elapsed += ( double ) ( end_time.tv_sec - start_time.tv_sec );
++
++        /* get total size */
++        char sTotalWritten[PROGRESS_NUM_BUF];
++        file_size_format ( sTotalWritten, g_iTotalSize, 1 );
++        /* TODO: using g_iTotalWritten would be more correct, but is less accurate */
++
++        /* calculate speed */
++        int copy_speed = ( int ) ( ( double ) g_iTotalWritten / sec_elapsed );
++        char s_copy_speed[PROGRESS_NUM_BUF];
++        file_size_format ( s_copy_speed, copy_speed, 1 );
++
++        /* good-bye message */
++        char sFType[PROGRESS_FTYPE_BUF];
++        if ( g_iDirectoriesCopied > 0 && g_iDirectoriesCopied == g_iFilesCopied )
++          sprintf ( sFType, "%s", "folder(s)" );
++        else if ( g_iDirectoriesCopied > 0 && g_iDirectoriesCopied < g_iFilesCopied )
++          sprintf ( sFType, "%s", "folder(s)/file(s)" );
++        else
++          sprintf ( sFType, "%s", "file(s)" );
++
++        char f_time[PROGRESS_NUM_BUF];
++        format_time(f_time, sec_elapsed, false);
++        printf ( "%d %s (%s) copied in %s (%s/s).\n", g_iFilesCopied, sFType,
++                 sTotalWritten, f_time, s_copy_speed );
++    }
++    /* END progress mod */
++
+   return ok;
+ }
+ 
+@@ -911,6 +1035,7 @@
+   x->recursive = false;
+   x->sparse_mode = SPARSE_AUTO;
+   x->symbolic_link = false;
++  x->progress_bar = false;
+   x->set_mode = false;
+   x->mode = 0;
+ 
+@@ -1049,7 +1174,7 @@
+   cp_option_init (&x);
+ 
+   int c;
+-  while ((c = getopt_long (argc, argv, "abdfHilLnprst:uvxPRS:TZ",
++  while ((c = getopt_long (argc, argv, "abdfgHilLnprst:uvxPRS:TZ",
+                            long_opts, NULL))
+          != -1)
+     {
+@@ -1110,6 +1235,10 @@
+           x.unlink_dest_after_failed_open = true;
+           break;
+ 
++        case 'g':
++          progress = true;
++          break;
++
+         case 'H':
+           x.dereference = DEREF_COMMAND_LINE_ARGUMENTS;
+           break;
+@@ -1276,6 +1405,11 @@
+       usage (EXIT_FAILURE);
+     }
+ 
++  /* BEGIN progress mod */
++  if (progress)
++    x.reflink_mode = REFLINK_NEVER;
++  /* END progress mod */
++
+   x.backup_type = (make_backups
+                    ? xget_version (_("backup type"),
+                                    version_control_string)
+--- coreutils-9.11/src/mv.c	2026-07-23 09:47:29.807078459 -0600
++++ coreutils-9.11k/src/mv.c	2026-07-23 09:47:29.837402508 -0600
+@@ -80,6 +80,7 @@
+   {"target-directory", required_argument, NULL, 't'},
+   {"update", optional_argument, NULL, 'u'},
+   {"verbose", no_argument, NULL, 'v'},
++  {"progress-bar", no_argument, NULL, 'g'},
+   {GETOPT_HELP_OPTION_DECL},
+   {GETOPT_VERSION_OPTION_DECL},
+   {NULL, 0, NULL, 0}
+@@ -171,9 +172,119 @@
+ {
+   bool copy_into_self;
+   bool rename_succeeded;
++
++  /* BEGIN progress mod */
++  struct timeval start_time;
++  struct stat sb;
++
++  if (progress && x->rename_errno != 0) {
++    if (target_directory_operand (source, &sb) >= 0)
++      g_iDirectoriesCopied++;
++
++    gettimeofday (& start_time, NULL);
++    g_oStartTime = start_time;
++
++    /* how many files are we copying */
++    FILE *fp;
++    char output[1024];
++    fp = spawn("find", (char *[]){ "find", (char *)source, "-type", "f", NULL });
++    if ( fp == NULL)
++      printf("failed to run find\r");
++    else
++    {
++      char *line_buf = NULL;
++      size_t line_buf_size = 0;
++      int line_count = 0;
++      ssize_t line_size;
++      line_size = getline(&line_buf, &line_buf_size, fp);
++      while (line_size > 0)
++      {
++        line_count++;
++        line_size = getline(&line_buf, &line_buf_size, fp);
++      }
++      free (line_buf);
++      g_iTotalFiles = line_count;
++    }
++    /* close */
++    pclose(fp);
++
++    printf ("calculating total size... \r");
++    fflush (stdout);
++    long iTotalSize = 0;
++    /* call du -s for source */
++    fp = spawn("du", (char *[]){ "du", "-s", (char *)source, NULL });
++    if (fp == NULL || fgets(output, sizeof(output)-1, fp) == NULL) {
++      printf("failed to run du\r" );
++    }
++    else
++    {
++      /* isolate size */
++      strchr ( output, '\t' )[0] = '\0';
++      iTotalSize += atol ( output );
++      printf ( "calculating total size... %ld\r", iTotalSize );
++      fflush ( stdout );
++    }
++
++    /* close */
++    pclose(fp);
++    g_iTotalSize += iTotalSize;
++  }
++  /* END progress mod */
++
+   bool ok = copy (source, dest, dest_dirfd, dest_relname, 0, x,
+                   &copy_into_self, &rename_succeeded);
+ 
++  /* BEGIN progress mod */
++  if (progress && (x->rename_errno != 0 && ok)) {
++    /* remove everything */
++    int i;
++    int limit = (g_iTotalFiles > 1 ? 6 : 3);
++    if (!rename_succeeded)
++    {
++      for ( i = 0; i < limit; i++ )
++        printf ( "\033[K\n" );
++      printf ( "\r\033[3A" );
++    }
++
++    /* save time */
++    struct timeval end_time;
++    gettimeofday ( & end_time, NULL );
++    int usec_elapsed = end_time.tv_usec - start_time.tv_usec;
++    double sec_elapsed = ( double ) usec_elapsed / 1000000.f;
++    sec_elapsed += ( double ) ( end_time.tv_sec - start_time.tv_sec );
++
++    /* get total size */
++    char sTotalWritten[PROGRESS_NUM_BUF];
++    file_size_format ( sTotalWritten, g_iTotalSize, 1 );
++    /* TODO: using g_iTotalWritten would be more correct, but is less accurate */
++
++    /* calculate speed */
++    int copy_speed = ( int ) ( ( double ) g_iTotalWritten / sec_elapsed );
++    char s_copy_speed[PROGRESS_NUM_BUF];
++    file_size_format ( s_copy_speed, copy_speed, 1 );
++
++    /* increase counter */
++    g_iFilesCopied++;
++
++    /* good-bye message */
++    if ( x->last_file )
++    {
++      char sFType[PROGRESS_FTYPE_BUF];
++      if ( g_iDirectoriesCopied > 0 && g_iDirectoriesCopied == g_iFilesCopied )
++        sprintf ( sFType, "%s", "folder(s)" );
++      else if ( g_iDirectoriesCopied > 0 && g_iDirectoriesCopied < g_iFilesCopied )
++        sprintf ( sFType, "%s", "folder(s)/file(s)" );
++      else
++        sprintf ( sFType, "%s", "file(s)" );
++
++      char f_time[PROGRESS_NUM_BUF];
++      format_time(f_time, sec_elapsed, false);
++      printf ( "%d %s (%s) moved in %s (%s/s).\n", g_iFilesCopied, sFType,
++               sTotalWritten, f_time, s_copy_speed );
++    }
++  }
++  /* END progress mod */
++
+   if (ok)
+     {
+       char const *dir_to_remove;
+@@ -283,6 +394,10 @@
+          do not prompt before overwriting\n\
+ "));
+       oputs (_("\
++  -g, --progress-bar\n\
++         add a progress bar\n\
++"));
++      oputs (_("\
+   -i, --interactive\n\
+          prompt before overwrite\n\
+ "));
+@@ -365,7 +480,7 @@
+   priv_set_remove_linkdir ();
+ 
+   int c;
+-  while ((c = getopt_long (argc, argv, "bfint:uvS:TZ", long_options, NULL))
++  while ((c = getopt_long (argc, argv, "bfingt:uvS:TZ", long_options, NULL))
+          != -1)
+     {
+       switch (c)
+@@ -378,6 +493,9 @@
+         case 'f':
+           x.interactive = I_ALWAYS_YES;
+           break;
++        case 'g':
++          progress = true;
++          break;
+         case 'i':
+           x.interactive = I_ASK_USER;
+           break;
+--- coreutils-9.11/doc/coreutils.texi	2026-07-23 09:47:29.758119162 -0600
++++ coreutils-9.11k/doc/coreutils.texi	2026-07-23 09:47:29.838680665 -0600
+@@ -8825,6 +8825,11 @@
+ This option is ignored when the @option{--no-clobber} or @option{-n} option
+ is also used.
+ 
++@optItem{cp,-g,}
++@optItemx{cp,--progress-bar,}
++Display a progress bar while copying, showing the percentage complete,
++copy speed, estimated time remaining, and per-file and overall progress.
++
+ @optItem{cp,-i,}
+ @optItemx{cp,--interactive,}
+ When copying a file other than a directory, prompt whether to
+@@ -9995,6 +10000,12 @@
+ @end macro
+ @mvOptsIfn
+ 
++@optItem{mv,-g,}
++@optItemx{mv,--progress-bar,}
++Display a progress bar while moving files across file systems, showing the
++percentage complete, copy speed, estimated time remaining, and per-file and
++overall progress.
++
+ @optItem{mv,-i,}
+ @optItemx{mv,--interactive,}
+ @cindex prompts, forcing
