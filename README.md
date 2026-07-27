@@ -67,8 +67,8 @@ echo -e 'alias mv=\x27/usr/local/bin/mvg -g\x27' >> ~/.bashrc
 Fish:
 
 ```
-echo alias cp '/usr/local/bin/advcp -g' >> ~/.config/fish/config.fish
-echo alias mv '/usr/local/bin/advmv -g' >> ~/.config/fish/config.fish
+echo "alias cp '/usr/local/bin/advcp -g'" >> ~/.config/fish/config.fish
+echo "alias mv '/usr/local/bin/advmv -g'" >> ~/.config/fish/config.fish
 ```
 
 ```
