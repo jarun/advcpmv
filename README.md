@@ -6,7 +6,9 @@ Advanced Copy is a mod for the GNU cp and GNU mv tools which adds a progress bar
 
 This repository exists because the [Advanced Copy](http://beatex.org/web/advancedcopy.html) website appears to be dead. You can still find it via the [Internet Archive](https://web.archive.org/web/20131115171331/http://beatex.org/web/advancedcopy.html).
 
-advcpmv-0.5-8.21.patch was the last patch released by the author (on February 14, 2013). advcpmv-0.6-8.24.patch (and following) are simply a rebase of that on top of the 8.24 version of coreutils.
+advcpmv-0.5-8.21.patch was the last patch released by the author (on February 14, 2013). Patches for newer releases are maintained in this project. Feel free to raise PRs for the most recent releases.
+
+<a href="https://github.com/sponsors/jarun" target="_blank"><img src="https://img.shields.io/badge/sponsor-advcpmv-deeppink.svg" alt="GitHub Sponsors"></a>
 
 ## Build instructions
 
