@@ -1,0 +1,187 @@
+name: Test patches
+
+on:
+  pull_request:
+    paths:
+      - '**/advcpmv-*-*.patch'
+  push:
+    branches: [main]
+    paths:
+      - '**/advcpmv-*-*.patch'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Detect patches
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.find.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: find
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Strict pattern: also rejects unsafe characters in file names.
+          pattern='^[A-Za-z0-9._/-]*advcpmv-[0-9.]+-[0-9.]+\.patch$'
+
+          if [ "$EVENT" = "pull_request" ]; then
+            # Only patches added or modified by the PR.
+            files=$(git diff --name-only --diff-filter=AM "$BASE_SHA" "$HEAD_SHA" | grep -E "$pattern" || true)
+          else
+            # push / manual run: test every patch in the repository.
+            files=$(git ls-files | grep -E "$pattern" || true)
+          fi
+
+          matrix=$(printf '%s\n' "$files" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "Patches to test: $matrix"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: ${{ matrix.patch }}
+    needs: detect
+    if: needs.detect.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        patch: ${{ fromJson(needs.detect.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse patch file name
+        id: parse
+        env:
+          PATCH_PATH: ${{ matrix.patch }}
+        run: |
+          # Expected name: advcpmv-<patch-version>-<coreutils-version>.patch
+          name=$(basename "$PATCH_PATH")
+          if [[ ! "$name" =~ ^advcpmv-([0-9.]+)-([0-9.]+)\.patch$ ]]; then
+            echo "::error::Invalid patch name: $name"
+            exit 1
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "coreutils=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
+
+      - name: Download coreutils ${{ steps.parse.outputs.coreutils }}
+        env:
+          VERSION: ${{ steps.parse.outputs.coreutils }}
+        run: |
+          url="https://ftp.gnu.org/gnu/coreutils/coreutils-${VERSION}.tar.xz"
+          if ! curl -fsSL --retry 3 -o coreutils.tar.xz "$url"; then
+            echo "::error::Could not download $url (does coreutils $VERSION exist?)"
+            exit 1
+          fi
+          tar xf coreutils.tar.xz
+
+      - name: Apply patch cleanly (no offset, no fuzz, no rejects)
+        env:
+          PATCH_PATH: ${{ matrix.patch }}
+          PATCH_NAME: ${{ steps.parse.outputs.name }}
+          VERSION: ${{ steps.parse.outputs.coreutils }}
+        run: |
+          cp "$PATCH_PATH" "coreutils-${VERSION}/$PATCH_NAME"
+          cd "coreutils-${VERSION}"
+
+          # -F0 makes any fuzz a failure; offsets are checked in the output below.
+          if ! patch -p1 -F0 --no-backup-if-mismatch -i "$PATCH_NAME" | tee patch.log; then
+            echo "::error::Patch failed to apply"
+            exit 1
+          fi
+
+          if grep -Eq 'offset|fuzz|FAILED' patch.log; then
+            echo "::error::Patch applied with offset/fuzz; regenerate it against coreutils ${VERSION}"
+            exit 1
+          fi
+
+      - name: Configure
+        working-directory: coreutils-${{ steps.parse.outputs.coreutils }}
+        # gnu17 avoids gnulib/configure problems with the default -std=gnu23 of newer GCC.
+        run: ./configure CFLAGS="-g -O2 -std=gnu17"
+
+      - name: Build cp and mv
+        working-directory: coreutils-${{ steps.parse.outputs.coreutils }}
+        run: make -j"$(nproc)" src/cp src/mv
+
+      - name: Check binaries
+        working-directory: coreutils-${{ steps.parse.outputs.coreutils }}
+        run: |
+          test -x src/cp
+          test -x src/mv
+          src/cp --version | head -n1
+          src/mv --version | head -n1
+
+      - name: Test patched cp and mv
+        working-directory: coreutils-${{ steps.parse.outputs.coreutils }}
+        run: |
+          set -euo pipefail
+
+          CP="$PWD/src/cp"
+          MV="$PWD/src/mv"
+
+          # Source lives in /dev/shm (tmpfs) and destination in RUNNER_TEMP, so
+          # that mv has to copy across filesystems instead of just renaming.
+          SRC=$(mktemp -d /dev/shm/advcpmv-src.XXXXXX)
+          DST=$(mktemp -d "$RUNNER_TEMP/advcpmv-dst.XXXXXX")
+
+          head -c 20M /dev/urandom > "$SRC/file.bin"
+          mkdir -p "$SRC/tree/sub"
+          head -c 5M /dev/urandom > "$SRC/tree/a.bin"
+          head -c 5M /dev/urandom > "$SRC/tree/sub/b.bin"
+          expected=$(sha256sum "$SRC/file.bin" | cut -d' ' -f1)
+
+          # The progress bar is only drawn on a terminal, so run under a pty.
+          run_tty() {
+            script -qec "$*" /dev/null
+          }
+
+          echo "::group::cp -g (single file)"
+          out=$(run_tty "$CP -g $SRC/file.bin $DST/cp-file.bin")
+          printf '%s\n' "$out" | tr '\r' '\n' | tail -n 3
+          if ! printf '%s' "$out" | grep -q '%'; then
+            echo "::error::cp -g printed no progress output"
+            exit 1
+          fi
+          cmp "$SRC/file.bin" "$DST/cp-file.bin"
+          echo "::endgroup::"
+
+          echo "::group::cp -g -r (directory)"
+          run_tty "$CP -g -r $SRC/tree $DST/cp-tree" > /dev/null
+          diff -r "$SRC/tree" "$DST/cp-tree"
+          echo "::endgroup::"
+
+          echo "::group::mv -g (single file, across filesystems)"
+          out=$(run_tty "$MV -g $SRC/file.bin $DST/mv-file.bin")
+          printf '%s\n' "$out" | tr '\r' '\n' | tail -n 3
+          if ! printf '%s' "$out" | grep -q '%'; then
+            echo "::error::mv -g printed no progress output"
+            exit 1
+          fi
+          if [ -e "$SRC/file.bin" ]; then
+            echo "::error::mv -g left the source file behind"
+            exit 1
+          fi
+          actual=$(sha256sum "$DST/mv-file.bin" | cut -d' ' -f1)
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::mv -g produced a file with different contents"
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "::group::mv -g (directory, across filesystems)"
+          cp -r "$DST/cp-tree" "$SRC/tree-copy"
+          run_tty "$MV -g $SRC/tree-copy $DST/mv-tree" > /dev/null
+          if [ -e "$SRC/tree-copy" ]; then
+            echo "::error::mv -g left the source directory behind"
+            exit 1
+          fi
+          diff -r "$DST/cp-tree" "$DST/mv-tree"
+          echo "::endgroup::"
