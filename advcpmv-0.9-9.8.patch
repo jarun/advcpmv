@@ -417,7 +417,7 @@
 +  }
 +}
 +
-+static void file_progress_bar ( char * _cDest, int _iBarLength, long _lProgress, long _lTotal ) 
++void file_progress_bar ( char * _cDest, int _iBarLength, long _lProgress, long _lTotal ) 
 +{ 
 +    double dPercent = (double) _lProgress / (double) _lTotal * 100.f; 
 +    sprintf( _cDest + ( _iBarLength - 6), "%4.1f", dPercent );
@@ -610,7 +610,7 @@
    _GL_ATTRIBUTE_NONNULL ((2, 4, 6, 8, 10, 11));
  
  extern bool set_process_security_ctx (char const *src_name,
-@@ -360,4 +366,21 @@
+@@ -360,4 +366,22 @@
    _GL_ATTRIBUTE_NONNULL () _GL_ATTRIBUTE_PURE;
  mode_t cached_umask (void);
  
@@ -618,6 +618,7 @@
 +FILE * spawn (const char *cmd, char *const argv[]);
 +void format_time (char * _cDst, double seconds, bool showall);
 +int file_size_format (char * _cDst, long _lSize, int _iCounter);
++void file_progress_bar (char * _cDest, int _iBarLength, long _lProgress, long _lTotal);
 +
 +__attribute__((__common__)) long g_iTotalSize;
 +__attribute__((__common__)) long g_iFTotalSize;
