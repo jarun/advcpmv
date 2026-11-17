@@ -1,4 +1,4 @@
-![advcpmv](https://web.archive.org/web/20131217004029im_/http://beatex.org/web/advcopy/advcpmv-screen-20130313.png)
+![advcpmv](assets/advcpmv-screen-20130313.png)
 
 ## Advanced Copy
 
