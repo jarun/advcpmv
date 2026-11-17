@@ -20,7 +20,7 @@ jobs:
     outputs:
       matrix: ${{ steps.find.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -41,7 +41,21 @@ jobs:
             files=$(git ls-files | grep -E "$pattern" || true)
           fi
 
-          matrix=$(printf '%s\n' "$files" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          # Each entry: patch path, container image ("" = run on the runner) and CFLAGS.
+          # Patches must build with a toolchain from their own era, not the newest one:
+          # coreutils <= 8.28: gnulib needs glibc < 2.28, so build in an Ubuntu 18.04 container.
+          # coreutils 8.30: the patch relies on -fcommon (GCC < 10 default), so also Ubuntu 18.04.
+          # coreutils 9.8, 9.9: gnulib does not build with the newest GCC, so use the ubuntu-22.04 runner.
+          matrix=$(printf '%s\n' "$files" | jq -R -s -c '
+            def cfg($v):
+              if   $v | test("^8\\.(1|2[0-8]|30)(\\.|$)")
+                then {runner: "ubuntu-latest", image: "ubuntu:18.04", cflags: ""}
+              elif $v | test("^9\\.[89]$")
+                then {runner: "ubuntu-22.04", image: "", cflags: "-std=gnu17"}
+              else {runner: "ubuntu-latest", image: "", cflags: "-std=gnu17"} end;
+            split("\n") | map(select(length > 0) | . as $p
+              | ($p | capture("-(?<v>[0-9.]+)\\.patch$").v) as $v
+              | {patch: $p} + cfg($v))')
           echo "Patches to test: $matrix"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
@@ -49,13 +63,13 @@ jobs:
     name: ${{ matrix.patch }}
     needs: detect
     if: needs.detect.outputs.matrix != '[]'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        patch: ${{ fromJson(needs.detect.outputs.matrix) }}
+        include: ${{ fromJson(needs.detect.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Parse patch file name
         id: parse
@@ -102,86 +116,32 @@ jobs:
             exit 1
           fi
 
-      - name: Configure
-        working-directory: coreutils-${{ steps.parse.outputs.coreutils }}
-        # gnu17 avoids gnulib/configure problems with the default -std=gnu23 of newer GCC.
-        run: ./configure CFLAGS="-g -O2 -std=gnu17"
+      - name: Build and test (host)
+        if: matrix.image == ''
+        env:
+          EXTRA_CFLAGS: ${{ matrix.cflags }}
+          # gnu17 avoids gnulib/configure problems with the default -std=gnu23 of newer GCC.
+        run: .github/scripts/build-and-test.sh "coreutils-${{ steps.parse.outputs.coreutils }}"
 
-      - name: Build cp and mv
-        working-directory: coreutils-${{ steps.parse.outputs.coreutils }}
-        run: make -j"$(nproc)" src/cp src/mv
-
-      - name: Check binaries
-        working-directory: coreutils-${{ steps.parse.outputs.coreutils }}
+      - name: Build and test (${{ matrix.image }} container)
+        if: matrix.image != ''
+        env:
+          IMAGE: ${{ matrix.image }}
+          EXTRA_CFLAGS: ${{ matrix.cflags }}
+          VERSION: ${{ steps.parse.outputs.coreutils }}
         run: |
-          test -x src/cp
-          test -x src/mv
-          src/cp --version | head -n1
-          src/mv --version | head -n1
-
-      - name: Test patched cp and mv
-        working-directory: coreutils-${{ steps.parse.outputs.coreutils }}
-        run: |
-          set -euo pipefail
-
-          CP="$PWD/src/cp"
-          MV="$PWD/src/mv"
-
-          # Source lives in /dev/shm (tmpfs) and destination in RUNNER_TEMP, so
-          # that mv has to copy across filesystems instead of just renaming.
-          SRC=$(mktemp -d /dev/shm/advcpmv-src.XXXXXX)
-          DST=$(mktemp -d "$RUNNER_TEMP/advcpmv-dst.XXXXXX")
-
-          head -c 20M /dev/urandom > "$SRC/file.bin"
-          mkdir -p "$SRC/tree/sub"
-          head -c 5M /dev/urandom > "$SRC/tree/a.bin"
-          head -c 5M /dev/urandom > "$SRC/tree/sub/b.bin"
-          expected=$(sha256sum "$SRC/file.bin" | cut -d' ' -f1)
-
-          # The progress bar is only drawn on a terminal, so run under a pty.
-          run_tty() {
-            script -qec "$*" /dev/null
-          }
-
-          echo "::group::cp -g (single file)"
-          out=$(run_tty "$CP -g $SRC/file.bin $DST/cp-file.bin")
-          printf '%s\n' "$out" | tr '\r' '\n' | tail -n 3
-          if ! printf '%s' "$out" | grep -q '%'; then
-            echo "::error::cp -g printed no progress output"
-            exit 1
-          fi
-          cmp "$SRC/file.bin" "$DST/cp-file.bin"
-          echo "::endgroup::"
-
-          echo "::group::cp -g -r (directory)"
-          run_tty "$CP -g -r $SRC/tree $DST/cp-tree" > /dev/null
-          diff -r "$SRC/tree" "$DST/cp-tree"
-          echo "::endgroup::"
-
-          echo "::group::mv -g (single file, across filesystems)"
-          out=$(run_tty "$MV -g $SRC/file.bin $DST/mv-file.bin")
-          printf '%s\n' "$out" | tr '\r' '\n' | tail -n 3
-          if ! printf '%s' "$out" | grep -q '%'; then
-            echo "::error::mv -g printed no progress output"
-            exit 1
-          fi
-          if [ -e "$SRC/file.bin" ]; then
-            echo "::error::mv -g left the source file behind"
-            exit 1
-          fi
-          actual=$(sha256sum "$DST/mv-file.bin" | cut -d' ' -f1)
-          if [ "$expected" != "$actual" ]; then
-            echo "::error::mv -g produced a file with different contents"
-            exit 1
-          fi
-          echo "::endgroup::"
-
-          echo "::group::mv -g (directory, across filesystems)"
-          cp -r "$DST/cp-tree" "$SRC/tree-copy"
-          run_tty "$MV -g $SRC/tree-copy $DST/mv-tree" > /dev/null
-          if [ -e "$SRC/tree-copy" ]; then
-            echo "::error::mv -g left the source directory behind"
-            exit 1
-          fi
-          diff -r "$DST/cp-tree" "$DST/mv-tree"
-          echo "::endgroup::"
+          # Old patches need a toolchain from their own era (gnulib of coreutils
+          # <= 8.28 needs glibc < 2.28; the 8.30 patch needs GCC < 10), so
+          # build and test inside an older distribution (Ubuntu 18.04). A plain
+          # docker run is used (not "container:") because actions/checkout needs
+          # a recent glibc for Node.js.
+          docker build -t advcpmv-builder - <<EOF
+          FROM $IMAGE
+          ENV DEBIAN_FRONTEND=noninteractive
+          RUN apt-get update && apt-get install -y --no-install-recommends \\
+                build-essential ca-certificates util-linux xz-utils
+          EOF
+          docker run --rm --user "$(id -u):$(id -g)" --shm-size=512m \
+            -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" -v "$RUNNER_TEMP:$RUNNER_TEMP" \
+            -w "$GITHUB_WORKSPACE" -e RUNNER_TEMP -e EXTRA_CFLAGS \
+            advcpmv-builder .github/scripts/build-and-test.sh "coreutils-$VERSION"
