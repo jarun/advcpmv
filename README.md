@@ -8,6 +8,14 @@ This repository exists because the [Advanced Copy](http://beatex.org/web/advance
 
 advcpmv-0.5-8.21.patch was the last patch released by the author (on February 14, 2013). Patches for newer releases are maintained in this project. Feel free to raise PRs for the most recent releases.
 
+Patch files are named `advcpmv-<patch version>-<coreutils version>.patch`. The latest patch is `advcpmv-1.0-9.12.patch`.
+
+### What's new in 1.0
+
+- The file counter ("N of M files") is right when copying or moving several operands and directories with files inside them. Before, only the first operand was counted.
+- Each file is counted once, and the final summary reports the number of files: `N file(s) (size) copied/moved in time (speed/s).`
+- `mv` no longer leaves blank lines above the summary when moving several files, and prints no summary when everything was just renamed on the same filesystem.
+
 <a href="https://github.com/sponsors/jarun" target="_blank"><img src="https://img.shields.io/badge/sponsor-advcpmv-deeppink.svg" alt="GitHub Sponsors"></a>
 
 ## Build instructions
@@ -31,11 +39,13 @@ Fish:
 curl https://raw.githubusercontent.com/jarun/advcpmv/master/install.sh --create-dirs -o ./advcpmv/install.sh; and begin; cd advcpmv; and sh install.sh; end
 ```
 
-To install an older version than the latest one, you can specify the version by passing it as an argument to the install script (at the end of the command, before the closing parenthesis). For example, if you want to install `advcpmv-0.8-8.32.patch` you would modify the command above like so.
+To install a specific version, pass the patch version and the coreutils version as arguments to the install script (at the end of the command, before the closing parenthesis). For example, to install `advcpmv-1.0-9.12.patch`, the latest one, you would modify the command above like so.
 
 ```
-... sh install.sh 0.8 8.32 ...
+... sh install.sh 1.0 9.12 ...
 ```
+
+Older versions work the same way, e.g. `sh install.sh 0.8 8.32` for `advcpmv-0.8-8.32.patch`.
 
 Alternatively, if you have already cloned this repository, you can run `install.sh` with the path to one of the patch files as the only argument, and it will infer the advcpmv and coreutils versions from the filename.
 
