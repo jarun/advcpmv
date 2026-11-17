@@ -583,7 +583,7 @@ diff -ruN coreutils-9.12-orig/src/copy-file-data.c coreutils-9.12/src/copy-file-
  }
 diff -ruN coreutils-9.12-orig/src/copy.h coreutils-9.12/src/copy.h
 --- coreutils-9.12-orig/src/copy.h	2026-09-08 18:37:27.000000000 -0300
-+++ coreutils-9.12/src/copy.h	2026-11-17 15:57:31.299096983 -0300
++++ coreutils-9.12/src/copy.h	2026-11-17 16:44:12.622751646 -0300
 @@ -254,6 +254,9 @@
       Create destination directories as usual. */
    bool symbolic_link;
@@ -594,7 +594,7 @@ diff -ruN coreutils-9.12-orig/src/copy.h coreutils-9.12/src/copy.h
    /* Control if destination files are replaced.  */
    enum Update_type update;
  
-@@ -369,4 +372,31 @@
+@@ -369,4 +372,48 @@
    _GL_ATTRIBUTE_NONNULL () _GL_ATTRIBUTE_PURE;
  mode_t cached_umask (void);
  
@@ -606,6 +606,23 @@ diff -ruN coreutils-9.12-orig/src/copy.h coreutils-9.12/src/copy.h
 +   the longer "(about ... remaining)" string.  */
 +#define PROGRESS_NUM_BUF 20
 +#define PROGRESS_ETA_BUF 40
++
++/* Version of the advcpmv patch, shown by --version after the coreutils
++   version, e.g. "cp (GNU coreutils) 9.12 + patch advcpmv 1.0".  */
++#define ADVCPMV_VERSION "1.0"
++
++/* Like case_GETOPT_VERSION_CHAR, but appends the advcpmv version.
++   Version is a variable, so the string is built at run time.  */
++#define case_ADVCPMV_VERSION_CHAR(Program_name, Authors)                \
++  case GETOPT_VERSION_CHAR:                                             \
++    {                                                                   \
++      char advcpmv_version[64];                                         \
++      snprintf ( advcpmv_version, sizeof advcpmv_version,               \
++                 "%s + patch advcpmv %s", Version, ADVCPMV_VERSION );   \
++      version_etc (stdout, Program_name, PACKAGE_NAME, advcpmv_version, \
++                   Authors, (char *) NULL);                             \
++      exit (EXIT_SUCCESS);                                              \
++    }
 +
 +FILE * spawn( const char *cmd, char *const argv[] );
 +int progress_count_files ( char const *path );
@@ -628,7 +645,7 @@ diff -ruN coreutils-9.12-orig/src/copy.h coreutils-9.12/src/copy.h
  #endif
 diff -ruN coreutils-9.12-orig/src/cp.c coreutils-9.12/src/cp.c
 --- coreutils-9.12-orig/src/cp.c	2026-07-31 10:51:12.000000000 -0300
-+++ coreutils-9.12/src/cp.c	2026-11-17 15:57:31.300245878 -0300
++++ coreutils-9.12/src/cp.c	2026-11-17 16:44:12.622931239 -0300
 @@ -141,6 +141,7 @@
    {"symbolic-link", no_argument, NULL, 's'},
    {"target-directory", required_argument, NULL, 't'},
@@ -758,7 +775,18 @@ diff -ruN coreutils-9.12-orig/src/cp.c coreutils-9.12/src/cp.c
          case 'H':
            x.dereference = DEREF_COMMAND_LINE_ARGUMENTS;
            break;
-@@ -1276,6 +1354,11 @@
+@@ -1238,7 +1316,9 @@
+ 
+         case_GETOPT_HELP_CHAR;
+ 
+-        case_GETOPT_VERSION_CHAR (PROGRAM_NAME, AUTHORS);
++        /* BEGIN progress mod */
++        case_ADVCPMV_VERSION_CHAR (PROGRAM_NAME, AUTHORS);
++        /* END progress mod */
+ 
+         default:
+           usage (EXIT_FAILURE);
+@@ -1276,6 +1356,11 @@
        usage (EXIT_FAILURE);
      }
  
@@ -772,7 +800,7 @@ diff -ruN coreutils-9.12-orig/src/cp.c coreutils-9.12/src/cp.c
                                     version_control_string)
 diff -ruN coreutils-9.12-orig/src/mv.c coreutils-9.12/src/mv.c
 --- coreutils-9.12-orig/src/mv.c	2026-08-17 09:24:15.000000000 -0300
-+++ coreutils-9.12/src/mv.c	2026-11-17 15:57:31.300419438 -0300
++++ coreutils-9.12/src/mv.c	2026-11-17 16:44:12.623050236 -0300
 @@ -80,6 +80,7 @@
    {"target-directory", required_argument, NULL, 't'},
    {"update", optional_argument, NULL, 'u'},
@@ -870,7 +898,18 @@ diff -ruN coreutils-9.12-orig/src/mv.c coreutils-9.12/src/mv.c
          case 'i':
            x.interactive = I_ASK_USER;
            break;
-@@ -540,6 +597,28 @@
+@@ -430,7 +487,9 @@
+             }
+           break;
+         case_GETOPT_HELP_CHAR;
+-        case_GETOPT_VERSION_CHAR (PROGRAM_NAME, AUTHORS);
++        /* BEGIN progress mod */
++        case_ADVCPMV_VERSION_CHAR (PROGRAM_NAME, AUTHORS);
++        /* END progress mod */
+         default:
+           usage (EXIT_FAILURE);
+         }
+@@ -540,6 +599,28 @@
  
    hash_init ();
  
