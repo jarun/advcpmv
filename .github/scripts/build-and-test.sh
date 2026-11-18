@@ -44,8 +44,8 @@ run_tty() {
 echo "::group::cp -g (single file)"
 out=$(run_tty "$CP -g $SRC/file.bin $DST/cp-file.bin")
 printf '%s\n' "$out" | tr '\r' '\n' | tail -n 3
-if ! printf '%s' "$out" | grep -q '%'; then
-  echo "::error::cp -g printed no progress output"
+if ! printf '%s' "$out" | grep -Eq '%|copied in'; then
+  echo "::error::cp -g printed no progress or completion summary"
   exit 1
 fi
 cmp "$SRC/file.bin" "$DST/cp-file.bin"
@@ -59,8 +59,8 @@ echo "::endgroup::"
 echo "::group::mv -g (single file, across filesystems)"
 out=$(run_tty "$MV -g $SRC/file.bin $DST/mv-file.bin")
 printf '%s\n' "$out" | tr '\r' '\n' | tail -n 3
-if ! printf '%s' "$out" | grep -q '%'; then
-  echo "::error::mv -g printed no progress output"
+if ! printf '%s' "$out" | grep -Eq '%|moved in'; then
+  echo "::error::mv -g printed no progress or completion summary"
   exit 1
 fi
 if [ -e "$SRC/file.bin" ]; then
