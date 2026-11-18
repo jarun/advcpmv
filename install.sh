@@ -17,8 +17,8 @@ case "${1##*/}" in
         esac
         ;;
     *)
-        ADVCPMV_VERSION=${1:-0.9}
-        CORE_UTILS_VERSION=${2:-9.11}
+        ADVCPMV_VERSION=${1:-1.0}
+        CORE_UTILS_VERSION=${2:-9.12}
         ;;
 esac
 
