@@ -63,7 +63,7 @@ diff -crB coreutils-8.24/src/copy.c coreutils-8.24-patch0.6/src/copy.c
      BUF for temporary storage.  Copy no more than MAX_N_READ bytes.
 ***************
 *** 315,320 ****
---- 365,383 ----
+--- 365,378 ----
            for each file.  Unfortunately that doesn't work for
            certain files in /proc or /sys with linux kernels.  */
       }
@@ -73,11 +73,6 @@ diff -crB coreutils-8.24/src/copy.c coreutils-8.24-patch0.6/src/copy.c
 +     /* update total size */
 +     g_iTotalWritten += *total_n_read / 1024;
 +     g_iFilesCopied++;
-+ 
-+     int i;
-+     for ( i = 0; i < 6; i++ )
-+       free ( cProgressField[i] );
-+     free ( cProgressField );
 +     /* END progress mod */
 +   }
   
