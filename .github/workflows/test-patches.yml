@@ -5,7 +5,7 @@ on:
     paths:
       - '**/advcpmv-*-*.patch'
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - '**/advcpmv-*-*.patch'
   workflow_dispatch:
@@ -34,8 +34,8 @@ jobs:
           pattern='^[A-Za-z0-9._/-]*advcpmv-[0-9.]+-[0-9.]+\.patch$'
 
           if [ "$EVENT" = "pull_request" ]; then
-            # Only patches added or modified by the PR.
-            files=$(git diff --name-only --diff-filter=AM "$BASE_SHA" "$HEAD_SHA" | grep -E "$pattern" || true)
+            # Only patches added, modified, renamed or copied by the PR.
+            files=$(git diff --name-only --diff-filter=AMRC "$BASE_SHA" "$HEAD_SHA" | grep -E "$pattern" || true)
           else
             # push / manual run: test every patch in the repository.
             files=$(git ls-files | grep -E "$pattern" || true)
