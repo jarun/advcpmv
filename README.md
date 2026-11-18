@@ -8,13 +8,15 @@ This repository exists because the [Advanced Copy](http://beatex.org/web/advance
 
 advcpmv-0.5-8.21.patch was the last patch released by the author (on February 14, 2013). Patches for newer releases are maintained in this project. Feel free to raise PRs for the most recent releases.
 
-Patch files are named `advcpmv-<patch version>-<coreutils version>.patch`. The latest patch is `advcpmv-1.0-9.12.patch`.
+Patch files are named `advcpmv-<patch version>-<coreutils version>.patch`. The latest patch is `advcpmv-1.0-9.12.patch`. Every coreutils 9.x release (9.0 to 9.12) has a 1.0 patch, and all of them make the same changes.
 
 ### What's new in 1.0
 
 - The file counter ("N of M files") is right when copying or moving several operands and directories with files inside them. Before, only the first operand was counted.
 - Each file is counted once, and the final summary reports the number of files: `N file(s) (size) copied/moved in time (speed/s).`
 - `mv` no longer leaves blank lines above the summary when moving several files, and prints no summary when everything was just renamed on the same filesystem.
+- `cp --version` and `mv --version` show the patch version, e.g. `cp (GNU coreutils) 9.12 + patch advcpmv 1.0`.
+- The `-g`/`--progress-bar` option is documented in the coreutils manual (`info coreutils`) for every 9.x release, not only 9.10 and later.
 
 <a href="https://github.com/sponsors/jarun" target="_blank"><img src="https://img.shields.io/badge/sponsor-advcpmv-deeppink.svg" alt="GitHub Sponsors"></a>
 
