@@ -10,6 +10,9 @@ advcpmv-0.5-8.21.patch was the last patch released by the author (on February 14
 
 Patch files are named `advcpmv-<patch version>-<coreutils version>.patch`. The latest patch is `advcpmv-1.0-9.12.patch`. Every coreutils 9.x release (9.0 to 9.12) has a 1.0 patch, and all of them make the same changes.
 
+> [!note]
+> The original author submitted the patch to the team that maintains GNU CoreUtils. They said they will not merge this patch, because mv and cp are feature complete.
+
 ### What's new in 1.0
 
 - The file counter ("N of M files") is right when copying or moving several operands and directories with files inside them. Before, only the first operand was counted.
@@ -117,9 +120,3 @@ mv() {
 ```
 
 Fish does not support this function syntax; use the Fish aliases above instead.
-
-```
-## Upstream merge
-
-The original author sent the patch to the team, that maintains the GNU CoreUtils. They won't merge this patch, because mv and cp are feature complete.
-```
