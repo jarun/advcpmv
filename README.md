@@ -26,6 +26,7 @@ Requires the following dependencies:
 
 - patch
 - gcc
+- texinfo (provides `makeinfo`; the patches for coreutils 9.x document `--progress-bar` in the manual, so the build regenerates it)
 
 Run the following command to download, patch, compile coreutils and generate the files: `./advcpmv/advcp` and `./advcpmv/advmv`.
 
